@@ -2,6 +2,7 @@ import { pgTable, text, doublePrecision, timestamp, integer } from 'drizzle-orm/
 import { db } from './db';
 import { eq } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
+import { LedgerTransactionType } from './ledgerTypes';
 
 export const balance = pgTable('balance', {
   userId: text('user_id').primaryKey(),
@@ -85,6 +86,43 @@ class Ledger {
       .where(eq(balance.userId, userId));
 
     return true;
+  }
+
+  async log(userId: string, delta: Decimal, type: LedgerTransactionType) {
+    return db.transaction(async (tx) => {
+      const userBalances = await this.getBalance(userId);
+
+      if (!userBalances || userBalances.length === 0) {
+        await tx.insert(balance).values({
+          userId,
+          total: delta.toNumber(),
+          free: delta.toNumber(),
+          locked: 0,
+        });
+      } else {
+        const userBalance = userBalances[0];
+        if (userBalance) {
+          const currentTotal = new Decimal(userBalance.total);
+          const currentFree = new Decimal(userBalance.free);
+          const newTotal = currentTotal.plus(delta);
+          const newFree = currentFree.plus(delta);
+
+          await tx.update(balance)
+            .set({
+              total: newTotal.toNumber(),
+              free: newFree.toNumber(),
+              updatedAt: new Date(),
+            })
+            .where(eq(balance.userId, userId));
+        }
+      }
+
+      await tx.insert(balanceLog).values({
+        userId,
+        delta: delta.toNumber(),
+        type,
+      });
+    });
   }
 }
 
