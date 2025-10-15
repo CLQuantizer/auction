@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 import { type Order, OrderSide } from "./messages/order";
-import { PriceLevel } from "./priceLevel";
-import { SortedMap } from "./sortedMap";
+import { SortedMap } from "./primitives/sortedMap";
+import type { PriceLevel } from "./primitives/priceLevel";
 
 export interface AuctionResult {
   clearingPrice: Decimal | null;
@@ -43,17 +43,17 @@ class OrderBook {
     return newOrder;
   }
 
-  cancelOrder(orderId: string, userId: string): boolean {
+  cancelOrder(orderId: string, userId: string): Order | null {
     const order = this.orderMap.get(orderId);
     if (!order || order.userId !== userId) {
-      return false;
+      return null;
     }
 
     const { side, price } = order;
     const map = side === OrderSide.BUY ? this.bids : this.asks;
     const priceLevel = map.get(price);
     if (!priceLevel) {
-      return false;
+      return null;
     }
 
     const removedOrder = priceLevel.removeOrder(orderId);
@@ -64,7 +64,7 @@ class OrderBook {
       }
     }
 
-    return removedOrder !== null;
+    return removedOrder;
   }
 
   getOrders(): Order[] {

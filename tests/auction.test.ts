@@ -1,9 +1,9 @@
 import { test, expect, beforeEach } from "bun:test";
 import { orderBook } from "../core/orderbook";
 import { OrderSide } from "../core/messages/order";
-import { toDecimal } from "../core/constants";
+import { toDecimal } from "../core/primitives/constants";
 import { Decimal } from "decimal.js";
-import { auctionEngine } from "../core/auction";
+import { auctionEngine } from "../core/auctionEngine";
 
 beforeEach(() => {
   orderBook.clear();

@@ -1,5 +1,5 @@
 import { Decimal } from "decimal.js";
-import type { Order } from "./messages/order";
+import type { Order } from "../messages/order";
 
 export class PriceLevel {
   private orders: Order[] = [];

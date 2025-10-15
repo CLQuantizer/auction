@@ -1,6 +1,6 @@
 import { Decimal } from "decimal.js";
-import { AUCTION_INTERVAL_SECONDS } from "./constants";
-import { type Order, OrderSide } from "./messages/order";
+import { AUCTION_INTERVAL_SECONDS } from "./primitives/constants";
+import { type Order } from "./messages/order";
 import type { Trade } from "./messages/trade";
 import { orderBook } from "./orderbook";
 import { tradePublisher } from "./tradePublisher";

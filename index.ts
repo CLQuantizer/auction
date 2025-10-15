@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { auctionEngine } from "./core/auction";
+import { auctionEngine } from "./core/auctionEngine";
 import { orderRoutes } from "./routes/order";
 
 console.log("Starting auction application...");
