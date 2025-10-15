@@ -1,0 +1,15 @@
+{
+  "name": "auction",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
