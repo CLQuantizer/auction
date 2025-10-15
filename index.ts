@@ -3,6 +3,7 @@ import { auctionEngine } from "./core/auction";
 import { toDecimal } from "./core/constants";
 import { OrderSide } from "./core/messages/order";
 import { orderBook } from "./core/orderbook";
+import { orderRoutes } from "./routes/order";
 
 console.log("Starting auction application...");
 
@@ -23,44 +24,7 @@ const app = new Hono();
 
 app.get("/", (c) => c.text("Welcome to the Auction Server!"));
 
-app.get("/api/orders", (c) => {
-  const orders = orderBook.getOrders().map(order => ({
-    ...order,
-    price: order.price.toString(),
-    quantity: order.quantity.toString(),
-  }));
-  return c.json(orders);
-});
-
-app.post("/api/create-order", async (c) => {
-  try {
-    const body = await c.req.json() as { userId: string, side: OrderSide, price: string | number, quantity: string | number };
-    
-    if (!body.userId || !body.side || !body.price || !body.quantity) {
-      return c.text("Missing required fields", 400);
-    }
-    if (body.side !== OrderSide.BUY && body.side !== OrderSide.SELL) {
-      return c.text("Invalid order side", 400);
-    }
-
-    const order = orderBook.placeOrder({
-      userId: body.userId,
-      side: body.side,
-      price: toDecimal(body.price),
-      quantity: toDecimal(body.quantity),
-    });
-    
-    const orderWithStringDecimals = {
-      ...order,
-      price: order.price.toString(),
-      quantity: order.quantity.toString(),
-    };
-
-    return c.json(orderWithStringDecimals, 201);
-  } catch (e) {
-    return c.text("Invalid JSON", 400);
-  }
-});
+app.route("/api", orderRoutes);
 
 export default {
   port: 3000,

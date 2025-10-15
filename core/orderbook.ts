@@ -11,6 +11,7 @@ export interface AuctionResult {
 class OrderBook {
   private bids: SortedMap<Decimal, PriceLevel>;
   private asks: SortedMap<Decimal, PriceLevel>;
+  private orderMap: Map<string, Order> = new Map();
 
   constructor() {
     this.bids = new SortedMap<Decimal, PriceLevel>(
@@ -37,11 +38,18 @@ class OrderBook {
       map.set(newOrder.price, collection);
     }
     collection.addOrder(newOrder);
+    this.orderMap.set(newOrder.id, newOrder);
 
     return newOrder;
   }
 
-  cancelOrder(orderId: string, side: OrderSide, price: Decimal): boolean {
+  cancelOrder(orderId: string, userId: string): boolean {
+    const order = this.orderMap.get(orderId);
+    if (!order || order.userId !== userId) {
+      return false;
+    }
+
+    const { side, price } = order;
     const map = side === OrderSide.BUY ? this.bids : this.asks;
     const priceLevel = map.get(price);
     if (!priceLevel) {
@@ -49,8 +57,11 @@ class OrderBook {
     }
 
     const removedOrder = priceLevel.removeOrder(orderId);
-    if (removedOrder && priceLevel.isEmpty) {
-      map.delete(price);
+    if (removedOrder) {
+      this.orderMap.delete(orderId);
+      if (priceLevel.isEmpty) {
+        map.delete(price);
+      }
     }
 
     return removedOrder !== null;
@@ -80,6 +91,7 @@ class OrderBook {
   clear() {
     this.bids.clear();
     this.asks.clear();
+    this.orderMap.clear();
   }
 
   findClearingPrice(): AuctionResult {
