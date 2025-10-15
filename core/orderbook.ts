@@ -23,7 +23,7 @@ class OrderBook {
     );
   }
 
-  addOrder(orderData: Omit<Order, "id" | "timestamp">): Order {
+  placeOrder(orderData: Omit<Order, "id" | "timestamp">): Order {
     const newOrder: Order = {
       ...orderData,
       id: crypto.randomUUID(),
@@ -39,6 +39,21 @@ class OrderBook {
     collection.addOrder(newOrder);
 
     return newOrder;
+  }
+
+  cancelOrder(orderId: string, side: OrderSide, price: Decimal): boolean {
+    const map = side === OrderSide.BUY ? this.bids : this.asks;
+    const priceLevel = map.get(price);
+    if (!priceLevel) {
+      return false;
+    }
+
+    const removedOrder = priceLevel.removeOrder(orderId);
+    if (removedOrder && priceLevel.isEmpty) {
+      map.delete(price);
+    }
+
+    return removedOrder !== null;
   }
 
   getOrders(): Order[] {
@@ -58,7 +73,7 @@ class OrderBook {
   updateOrders(orders: Order[]) {
     this.clear();
     for (const o of orders) {
-      this.addOrder(o);
+      this.placeOrder(o);
     }
   }
 
