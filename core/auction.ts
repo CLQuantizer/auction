@@ -3,7 +3,6 @@ import { AUCTION_INTERVAL_SECONDS } from "./constants";
 import { type Order, OrderSide } from "./messages/order";
 import type { Trade } from "./messages/trade";
 import { orderBook } from "./orderbook";
-import { findClearingPrice } from "./pricing";
 import { tradePublisher } from "./tradePublisher";
 
 class AuctionEngine {
@@ -25,7 +24,7 @@ class AuctionEngine {
     }
   }
 
-  private runAuction() {
+  public runAuction() {
     console.log(
       `\n--- Running auction at ${new Date().toLocaleTimeString()} ---`
     );
@@ -35,7 +34,7 @@ class AuctionEngine {
       return;
     }
 
-    const { clearingPrice, volume } = findClearingPrice(allOrders);
+    const { clearingPrice, volume } = orderBook.findClearingPrice();
 
     if (clearingPrice === null || volume.isZero()) {
       console.log("No matching trades in this auction.");
