@@ -1,9 +1,16 @@
 import { test, expect, beforeEach } from "bun:test";
-import { auctionEngine } from "./core/auction";
-import { orderBook } from "./core/orderbook";
-import { OrderSide } from "./core/messages/order";
-import { toDecimal } from "./core/constants";
+import { orderBook } from "../core/orderbook";
+import { OrderSide } from "../core/messages/order";
+import { toDecimal } from "../core/constants";
 import { Decimal } from "decimal.js";
+import { db } from "../data/db";
+import { sql } from "drizzle-orm";
+import { auctionEngine } from "../core/auction";
+
+test("database should connect", async () => {
+  const result = await db.execute(sql`select 1`);
+  expect(result).toBeDefined();
+});
 
 beforeEach(() => {
   orderBook.clear();
