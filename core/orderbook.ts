@@ -1,7 +1,7 @@
 import { Decimal } from "decimal.js";
 import { type Order, OrderSide } from "./messages/order";
 import { SortedMap } from "./primitives/sortedMap";
-import type { PriceLevel } from "./primitives/priceLevel";
+import { PriceLevel } from "./primitives/priceLevel";
 
 export interface AuctionResult {
   clearingPrice: Decimal | null;
