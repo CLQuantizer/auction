@@ -9,6 +9,7 @@
   "dependencies": {
     "decimal.js": "^10.4.3",
     "drizzle-orm": "^0.44.6",
+    "ethers": "^6.15.0",
     "hono": "^4.9.12"
   },
   "peerDependencies": {

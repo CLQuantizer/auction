@@ -124,9 +124,9 @@ test("should cancel an existing order", () => {
   expect(orderBook.getBuyOrders().length).toBe(1);
 
   // Act
-  const wasCancelled = orderBook.cancelOrder(order.id, order.side, order.price);
+  const wasCancelled = orderBook.cancelOrder(order.id, order.userId);
 
   // Assert
-  expect(wasCancelled).toBe(true);
+  expect(wasCancelled).not.toBeNull();
   expect(orderBook.getBuyOrders().length).toBe(0);
 });

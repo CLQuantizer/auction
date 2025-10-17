@@ -53,6 +53,9 @@ class OrderBook {
     const map = side === OrderSide.BUY ? this.bids : this.asks;
     const priceLevel = map.get(price);
     if (!priceLevel) {
+      console.error(
+        `Order book inconsistency: Order ${orderId} found, but no price level at ${price.toString()}`
+      );
       return null;
     }
 
