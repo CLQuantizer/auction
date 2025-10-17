@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { bnbChain } from "../chain/bnb";
+import { bnbChain, BnbChain } from "../chain/bnb";
 
 const expectedBlock = {
     "jsonrpc": "2.0",
@@ -20,6 +20,21 @@ describe("BnbChain", () => {
     expect(block).toBeDefined();
     expect(block.result.hash).toBe(expectedBlock.result.hash);
     expect(block.result.parentHash).toBe(expectedBlock.result.parentHash);
+  });
+
+  it("should get balance for a given address on testnet", async () => {
+    const testnetRpcUrl = process.env.TESTNET_RPC_URL;
+    if (!testnetRpcUrl) {
+      throw new Error("TESTNET_RPC_URL is not set. Please add it to your environment variables.");
+    }
+
+    const bnbTestnetChain = new BnbChain(testnetRpcUrl);
+    const publicKey = "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F";
+    const balance = await bnbTestnetChain.getBalance(publicKey);
+
+    console.log(`Balance for ${publicKey}: ${balance} tBNB`);
+
+    expect(balance).toBeGreaterThan(0.1);
   });
 });
 // tests\chain.test.ts:
