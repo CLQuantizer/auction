@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { auctionEngine } from "./core/auctionEngine";
 import { orderRoutes } from "./routes/order";
+import { startScanning } from "./core/cron/scanDeposit";
 
 console.log("Starting auction application...");
 
 auctionEngine.start();
+startScanning();
 
 const app = new Hono();
 
