@@ -14,9 +14,6 @@ describe("BnbChain", () => {
   it("should get block 1000 and print it", async () => {
     const blockNumber = 1000;
     const block = (await bnbChain.getBlockByNumber(blockNumber)) as typeof expectedBlock;
-
-    console.log(JSON.stringify(block, null, 2));
-
     expect(block).toBeDefined();
     expect(block.result.hash).toBe(expectedBlock.result.hash);
     expect(block.result.parentHash).toBe(expectedBlock.result.parentHash);
@@ -37,4 +34,3 @@ describe("BnbChain", () => {
     expect(balance).toBeGreaterThan(0.1);
   });
 });
-// tests\chain.test.ts:

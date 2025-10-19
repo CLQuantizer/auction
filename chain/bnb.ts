@@ -32,10 +32,10 @@ interface BscScanResponse {
 
 export class BnbChain {
   private endpoint: string;
-  private bscScanApiUrl: string;
-  private bscScanApiKey: string;
+  private bscScanApiUrl?: string;
+  private bscScanApiKey?: string;
 
-  constructor(endpoint: string, bscScanApiUrl: string, bscScanApiKey: string) {
+  constructor(endpoint: string, bscScanApiUrl?: string, bscScanApiKey?: string) {
     if (!endpoint) {
       throw new Error("RPC endpoint is not provided");
     }
@@ -130,6 +130,9 @@ export class BnbChain {
   }
 
   async getTransactionsForAddress(address: string, startBlock: number = 0) {
+    if (!this.bscScanApiUrl || !this.bscScanApiKey) {
+      throw new Error("BscScan API URL or Key not configured");
+    }
     const url = `${this.bscScanApiUrl}?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=99999999&sort=asc&apikey=${this.bscScanApiKey}`;
 
     const response = await fetch(url);
@@ -142,6 +145,39 @@ export class BnbChain {
       throw new Error(`BscScan API error: ${data.message}`);
     }
     return data.result;
+  }
+
+  async getBep20TokenBalance(tokenAddress: string, walletAddress: string): Promise<bigint> {
+    const functionSignature = '0x70a08231'; // balanceOf(address)
+    const encodedAddress = walletAddress.substring(2).padStart(64, '0');
+    const data = functionSignature + encodedAddress;
+
+    const response = await fetch(this.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_call',
+        params: [{
+          to: tokenAddress,
+          data: data,
+        }, 'latest'],
+        id: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const json = (await response.json()) as JsonRpcResponse<string>;
+    if (json.error) {
+      throw new Error(`RPC error: ${json.error.message}`);
+    }
+    
+    return BigInt(json.result);
   }
 }
 
