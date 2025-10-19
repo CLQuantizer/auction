@@ -1,14 +1,12 @@
 import { Hono } from "hono";
 import { auctionEngine } from "./core/auctionEngine";
 import { orderRoutes } from "./routes/order";
-import { scanDeposits } from "./core/cron/scanDeposit";
-import { bnbChain } from "./chain/bnb";
+import { startScanner } from "./core/cron/scanDeposit";
 
 console.log("Starting auction application...");
 
-bnbChain.start();
 auctionEngine.start();
-// scanDeposits();
+startScanner();
 
 const app = new Hono();
 

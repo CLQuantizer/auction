@@ -1,6 +1,8 @@
 import { Decimal } from 'decimal.js';
 
 export const AUCTION_INTERVAL_SECONDS = 5;
+export const AUCTION_EXPIRATION_MS = 60000;
+export const BLOCK_SCAN_RANGE = 999;
 
 export const DECIMAL_PLACES = 5;
 

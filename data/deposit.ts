@@ -1,6 +1,5 @@
 import { pgTable, text, integer, timestamp, serial } from 'drizzle-orm/pg-core';
 import { db } from './db';
-import { desc } from 'drizzle-orm';
 
 export const deposits = pgTable('deposits', {
   id: serial('id').primaryKey(),
@@ -21,11 +20,3 @@ export const createDeposit = async (deposit: NewDeposit) => {
   const result = await db.insert(deposits).values(deposit).returning();
   return result[0];
 };
-
-export const getLatestDepositBlock = async () => {
-    const result = await db.select({ blockNumber: deposits.blockNumber }).from(deposits).orderBy(desc(deposits.blockNumber)).limit(1);
-    if (result.length > 0 && result[0]) {
-        return result[0].blockNumber;
-    }
-    return 0;
-}

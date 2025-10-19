@@ -1,14 +1,23 @@
-import { bnbChain } from "../../chain/bnb";
 import { creditDeposit } from "./credit";
-import { createDeposit, getLatestDepositBlock } from "../../data/deposit";
+import { createDeposit } from "../../data/deposit";
 import { Decimal } from "decimal.js";
-import type { BscScanTx } from "../../chain/bnb";
-
-const POLL_INTERVAL = 10000; // 2 seconds
+import { nodeReal } from "../../chain/nodereal";
+import { CronJob } from "cron";
+import {
+  getLatestScannedBlock,
+  updateLatestScannedBlock,
+} from "../../data/scanner";
+import { bnbChain } from "../../chain/bnb";
+import { BLOCK_SCAN_RANGE } from "../primitives/constants";
 
 const processTransaction = async (
-  tx: BscScanTx | any,
-  blockNumber: number
+  tx: {
+    from: string;
+    to: string;
+    value: string;
+    hash: string;
+  },
+  blockNumber: number,
 ) => {
   console.log("processing transaction", JSON.stringify(tx, null, 2));
   if (
@@ -28,7 +37,7 @@ const processTransaction = async (
     });
     const amount = new Decimal(tx.value).div(new Decimal(1e18));
     console.log(
-      `Crediting ${amount.toString()} to ${tx.from} in 15 seconds...`
+      `Crediting ${amount.toString()} to ${tx.from} in 15 seconds...`,
     );
     setTimeout(() => {
       creditDeposit(tx.from!, amount, tx.hash!).catch(console.error);
@@ -39,50 +48,50 @@ const processTransaction = async (
 export const scanDeposits = async () => {
   console.log("Scanning for deposits...");
   try {
-    if (bnbChain.useBscScan) {
-      const latestBlock = await getLatestDepositBlock();
-      const transactions = await bnbChain.getTransactionsForAddress(
-        process.env.PUBLIC_KEY!,
-        latestBlock + 1
-      );
+    const latestScannedBlock = await getLatestScannedBlock();
+    const latestChainBlock = await bnbChain.getLatestBlockNumber();
+    const fromBlock = latestScannedBlock + 1;
 
-      if (!transactions || transactions.length === 0) {
-        console.log("No new transactions found.");
-        return;
-      }
+    if (fromBlock > latestChainBlock-BLOCK_SCAN_RANGE) {
+      console.log("No new blocks to process.");
+      return;
+    }
 
-      for (const tx of transactions) {
-        await processTransaction(tx, parseInt(tx.blockNumber));
+    const result = await nodeReal.getAssetTransfers(
+      process.env.PUBLIC_KEY!,
+      fromBlock,
+      ["20"],
+    );
+
+    if (result && result.transfers && result.transfers.length > 0) {
+      for (const tx of result.transfers) {
+        await processTransaction(
+          {
+            from: tx.from,
+            to: tx.to,
+            value: tx.value,
+            hash: tx.hash,
+          },
+          parseInt(tx.blockNum, 16),
+        );
       }
     } else {
-      let latestBlock = await getLatestDepositBlock();
-      const currentBlock = await bnbChain.getLatestBlockNumber();
-
-      if (currentBlock > latestBlock) {
-        console.log(
-          `New blocks detected. Scanning from block ${
-            latestBlock + 1
-          } to ${currentBlock}`
-        );
-
-        for (let i = latestBlock + 1; i <= currentBlock; i++) {
-          const block = await bnbChain.getBlockByNumber(i);
-          if (!block || !block.result || !block.result.transactions) {
-            continue;
-          }
-          const transactions = block.result.transactions;
-
-          for (const tx of transactions) {
-            await processTransaction(tx, i);
-          }
-        }
-      } else {
-        console.log("No new blocks to process.");
-      }
+      console.log("No new transactions found.");
     }
+
+    const scannedUpToBlock = Math.min(
+      fromBlock + BLOCK_SCAN_RANGE,
+      latestChainBlock,
+    );
+    await updateLatestScannedBlock(scannedUpToBlock);
+    console.log(`Scanner updated to block ${scannedUpToBlock}`);
   } catch (error) {
     console.error("Error scanning for deposits:", error);
   }
+};
 
-  setTimeout(scanDeposits, POLL_INTERVAL);
+const job = new CronJob("*/10 * * * * *", scanDeposits);
+
+export const startScanner = () => {
+  job.start();
 };

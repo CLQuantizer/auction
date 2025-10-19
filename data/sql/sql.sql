@@ -29,6 +29,14 @@ CREATE TABLE deposits (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Scanned blocks table to track the last scanned block number
+-- This table should only ever have one row
+CREATE TABLE scanned_blocks (
+    id INTEGER PRIMARY KEY,
+    block_number INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Withdrawals table to track outgoing funds
 CREATE TABLE withdrawals (
    id SERIAL PRIMARY KEY,
