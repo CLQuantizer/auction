@@ -5,7 +5,7 @@ import { creditDeposit } from "./credit";
 // This should be your exchange's public key, loaded from environment variables
 const PUBLIC_KEY = process.env.PUBLIC_KEY || "0xYourPublicKey";
 
-let lastScannedBlock: number | null = null;
+let lastScannedBlock: number = 65186730;
 
 async function scanDeposits() {
   try {
