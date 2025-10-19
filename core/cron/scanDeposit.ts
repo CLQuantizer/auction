@@ -90,8 +90,8 @@ export const scanDeposits = async () => {
   }
 };
 
-const job = new CronJob("*/10 * * * * *", scanDeposits);
+const job = new CronJob("0 * * * * *", scanDeposits);
 
-export const startScanner = () => {
+export const startDepositScanner = () => {
   job.start();
 };
