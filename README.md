@@ -1,4 +1,10 @@
-# auction
+# Auction Engine
+
+This project is a meme toy auction engine for a single trading instrument, comprised of a `BaseCoin` and a `QuoteCoin`.
+
+## Getting Started
+
+### Installation
 
 To install dependencies:
 
@@ -6,10 +12,14 @@ To install dependencies:
 bun install
 ```
 
-To run:
+### Running the Application
+
+To run the auction engine:
 
 ```bash
 bun run index.ts
 ```
 
-This project was created using `bun init` in bun v1.3.0. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+The server will start on port 3000.
+
+This project was created using `bun init`. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
