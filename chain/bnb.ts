@@ -24,6 +24,8 @@ interface BscScanTx {
   txreceipt_status: string;
 }
 
+export type { BscScanTx };
+
 interface BscScanResponse {
   status: string;
   message: string;
@@ -34,14 +36,70 @@ export class BnbChain {
   private endpoint: string;
   private bscScanApiUrl?: string;
   private bscScanApiKey?: string;
+  public readonly useBscScan: boolean;
+  private wssEndpoint?: string;
+  public ws?: WebSocket;
 
-  constructor(endpoint: string, bscScanApiUrl?: string, bscScanApiKey?: string) {
+  constructor(
+    endpoint: string,
+    wssEndpoint?: string,
+    bscScanApiUrl?: string,
+    bscScanApiKey?: string,
+  ) {
     if (!endpoint) {
       throw new Error("RPC endpoint is not provided");
     }
     this.endpoint = endpoint;
+    this.wssEndpoint = wssEndpoint;
     this.bscScanApiUrl = bscScanApiUrl;
     this.bscScanApiKey = bscScanApiKey;
+    this.useBscScan = !!(this.bscScanApiUrl && this.bscScanApiKey);
+  }
+
+  start() {
+    if (!this.wssEndpoint) {
+      console.warn(
+        "WSS endpoint is not provided, WebSocket will not be connected.",
+      );
+      return;
+    }
+
+    this.ws = new WebSocket(this.wssEndpoint);
+
+    this.ws.onopen = () => {
+      console.log("BNB Chain WebSocket connected");
+      this.subscribe("logs", {
+        address: process.env.PUBLIC_KEY!,
+      });
+    };
+
+    this.ws.onmessage = (event) => {
+      console.log("BNB Chain WebSocket message:", event.data);
+    };
+
+    this.ws.onerror = (error) => {
+      console.error("BNB Chain WebSocket error:", error);
+    };
+
+    this.ws.onclose = () => {
+      console.log("BNB Chain WebSocket disconnected");
+    };
+  }
+
+  subscribe(method: string, params: any) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket is not connected.");
+      return;
+    }
+
+    const payload = {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_subscribe",
+      params: [method, params],
+    };
+
+    this.ws.send(JSON.stringify(payload));
   }
 
   async getBlockByNumber(blockNumber: number, withTransactions: boolean = false) {
@@ -130,7 +188,7 @@ export class BnbChain {
   }
 
   async getTransactionsForAddress(address: string, startBlock: number = 0) {
-    if (!this.bscScanApiUrl || !this.bscScanApiKey) {
+    if (!this.useBscScan) {
       throw new Error("BscScan API URL or Key not configured");
     }
     const url = `${this.bscScanApiUrl}?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=99999999&sort=asc&apikey=${this.bscScanApiKey}`;
@@ -183,6 +241,7 @@ export class BnbChain {
 
 export const bnbChain = new BnbChain(
   process.env.MAINNET_RPC_URL!,
-  process.env.BSCSCAN_API_URL!,
-  process.env.BSCSCAN_API_KEY!
+  `wss://bsc-mainnet.nodereal.io/ws/v1/${process.env.NODE_REAL_API_KEY}`,
+  process.env.BSCSCAN_API_URL,
+  process.env.BSCSCAN_API_KEY,
 );

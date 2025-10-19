@@ -1,6 +1,6 @@
 import { pgTable, text, integer, timestamp, serial } from 'drizzle-orm/pg-core';
 import { db } from './db';
-import { sql, desc } from 'drizzle-orm';
+import { desc } from 'drizzle-orm';
 
 export const deposits = pgTable('deposits', {
   id: serial('id').primaryKey(),
