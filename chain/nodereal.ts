@@ -1,5 +1,4 @@
 import {
-  AUCTION_EXPIRATION_MS,
   BLOCK_SCAN_RANGE,
 } from "../core/primitives/constants";
 
@@ -27,56 +26,76 @@ export class NodeReal {
     fromBlock: string | number,
     category: ("external" | "internal" | "20" | "721" | "1155")[],
   ) {
-    if (typeof fromBlock === "number") {
-      console.log(
-        "scanning from block",
-        fromBlock,
-        "to block",
-        fromBlock + BLOCK_SCAN_RANGE,
-      );
-    } else {
-      console.log("scanning from block", fromBlock, "to block", "latest");
-    }
-    const fromBlockHex =
-      typeof fromBlock === "number"
-        ? `0x${fromBlock.toString(16)}`
-        : fromBlock;
-    const toBlockHex =
-      typeof fromBlock === "number"
-        ? `0x${(fromBlock + BLOCK_SCAN_RANGE).toString(16)}`
-        : undefined;
+    let allTransfers: any[] = [];
+    let pageKey: string | undefined = undefined;
 
-    const response = await fetch(this.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        method: "nr_getAssetTransfers",
-        params: [
-          {
-            fromBlock: fromBlockHex,
-            toBlock: toBlockHex,
-            toAddress: address,
-            category,
-          },
-        ],
-        id: 1,
-      }),
-    });
+    do {
+      if (typeof fromBlock === "number") {
+        console.log(
+          "scanning from block",
+          fromBlock,
+          "to block",
+          fromBlock + BLOCK_SCAN_RANGE,
+        );
+      } else {
+        console.log("scanning from block", fromBlock, "to block", "latest");
+      }
+      const fromBlockHex =
+        typeof fromBlock === "number"
+          ? `0x${fromBlock.toString(16)}`
+          : fromBlock;
+      const toBlockHex =
+        typeof fromBlock === "number"
+          ? `0x${(fromBlock + BLOCK_SCAN_RANGE).toString(16)}`
+          : undefined;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      const params: any = {
+        fromBlock: fromBlockHex,
+        toAddress: address,
+        category,
+      };
 
-    const data = (await response.json()) as JsonRpcResponse<{
-      transfers: any[];
-    }>;
-    if (data.error) {
-      throw new Error(`RPC error: ${data.error.message}`);
-    }
-    return data.result;
+      if (toBlockHex) {
+        params.toBlock = toBlockHex;
+      }
+
+      if (pageKey) {
+        params.pageKey = pageKey;
+      }
+
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "nr_getAssetTransfers",
+          params: [params],
+          id: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = (await response.json()) as JsonRpcResponse<{
+        transfers: any[];
+        pageKey?: string;
+      }>;
+
+      if (data.error) {
+        throw new Error(`RPC error: ${data.error.message}`);
+      }
+
+      if (data.result && data.result.transfers) {
+        allTransfers = allTransfers.concat(data.result.transfers);
+      }
+
+      pageKey = data.result.pageKey;
+    } while (pageKey);
+    return { transfers: allTransfers };
   }
 }
 
