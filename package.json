@@ -5,21 +5,26 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.17",
     "solc": "^0.8.30"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
     "decimal.js": "^10.4.3",
-    "drizzle-orm": "^0.44.6",
+    "drizzle-orm": "^0.30.10",
     "ethers": "^6.15.0",
-    "hono": "^4.9.12"
+    "hono": "^4.2.7",
+    "postgres": "^3.4.4"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "scripts": {
-    "deploy": "bun run scripts/deploy.ts",
-    "deploy:quotecoin:mainnet": "bun run scripts/deploy-mainnet.ts",
-    "deploy:basecoin:mainnet": "bun run scripts/deploy-basecoin-mainnet.ts"
+    "start": "bun run index.ts",
+    "dev": "bun run --watch index.ts",
+    "test": "bun test",
+    "migrate": "drizzle-kit generate:pg",
+    "migrate:push": "drizzle-kit push:pg"
   }
 }
