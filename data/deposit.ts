@@ -5,13 +5,14 @@ import { sql, desc } from 'drizzle-orm';
 export const deposits = pgTable('deposits', {
   id: serial('id').primaryKey(),
   blockNumber: integer('block_number').notNull(),
-  from: text('from').notNull(),
-  to: text('to').notNull(),
+  from: text('tx_from').notNull(),
+  to: text('tx_to').notNull(),
   value: text('value').notNull(),
   hash: text('hash').notNull().unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
 
 export type Deposit = typeof deposits.$inferSelect;
 export type NewDeposit = Omit<Deposit, 'id' | 'createdAt' | 'updatedAt'>;
