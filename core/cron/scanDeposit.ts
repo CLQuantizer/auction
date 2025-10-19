@@ -1,47 +1,61 @@
 import { bnbChain } from "../../chain/bnb";
-import { Decimal } from "decimal.js";
 import { creditDeposit } from "./credit";
+import { createDeposit, getLatestDepositBlock } from "../../data/deposit";
+import { Decimal } from "decimal.js";
 
-// This should be your exchange's public key, loaded from environment variables
-const PUBLIC_KEY = process.env.PUBLIC_KEY || "0xYourPublicKey";
+const POLL_INTERVAL = 2000; // 2 seconds
+const BLOCK_CONFIRMATIONS = 128;
 
-let lastScannedBlock: number = 65186730;
+export const scanDeposits = async () => {
+  console.log("Scanning for deposits...");
 
-async function scanDeposits() {
   try {
-    if (lastScannedBlock === null) {
-      // On the first run, get the latest block number and start from there.
-      lastScannedBlock = await bnbChain.getLatestBlockNumber();
+    let latestBlock = await getLatestDepositBlock();
+    const currentBlock = await bnbChain.getLatestBlockNumber();
+    const confirmedBlock = currentBlock - BLOCK_CONFIRMATIONS;
+
+    if (confirmedBlock <= 0) {
+      console.log("Not enough blocks to confirm transactions yet.");
+      setTimeout(scanDeposits, POLL_INTERVAL);
+      return;
     }
 
-    console.log(`Scanning for transactions since block ${lastScannedBlock}`);
+    if (latestBlock === 0) {
+      latestBlock = confirmedBlock - 1;
+    }
 
-    const transactions = await bnbChain.getTransactionsForAddress(PUBLIC_KEY, lastScannedBlock + 1);
+    if (confirmedBlock > latestBlock) {
+      console.log(
+        `New blocks detected. Scanning from block ${
+          latestBlock + 1
+        } to ${confirmedBlock}`
+      );
 
-    if (transactions && transactions.length > 0) {
-      for (const tx of transactions) {
-        if (tx.to.toLowerCase() === PUBLIC_KEY.toLowerCase()) {
-          console.log(`Deposit found in block ${tx.blockNumber}: ${tx.hash}`);
+      for (let i = latestBlock + 1; i <= confirmedBlock; i++) {
+        const block = await bnbChain.getBlockByNumber(i);
+        const transactions = block.result.transactions;
 
-          const amount = new Decimal(tx.value).div(new Decimal(1e18));
-
-          // Credit the user
-          await creditDeposit(tx.from, amount, tx.hash);
+        for (const tx of transactions) {
+          if (tx.to === process.env.DEPOSIT_ADDRESS) {
+            console.log(`Deposit detected: ${tx.value} from ${tx.from}`);
+            await createDeposit({
+              blockNumber: i,
+              from: tx.from,
+              to: tx.to,
+              value: tx.value,
+              hash: tx.hash,
+            });
+            const amount = new Decimal(tx.value).div(new Decimal(1e18));
+            await creditDeposit(tx.from, amount, tx.hash);
+          }
         }
-        lastScannedBlock = Math.max(lastScannedBlock, parseInt(tx.blockNumber));
       }
     } else {
-      console.log("No new transactions found.");
+      console.log("No new blocks to process.");
     }
-
   } catch (error) {
-    console.error("Error scanning deposits:", error);
+    console.error("Error scanning for deposits:", error);
   }
-}
 
-export function startScanning() {
-    console.log("Starting deposit scanner...");
-    // Run every 10 seconds.
-    // This should be configured based on the chain's block time.
-    setInterval(scanDeposits, 10000);
-}
+  setTimeout(scanDeposits, POLL_INTERVAL);
+};
