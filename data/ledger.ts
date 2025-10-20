@@ -124,6 +124,43 @@ class Ledger {
       });
     });
   }
+
+  async withdraw(userId: string, amount: Decimal): Promise<boolean> {
+    const userBalances = await this.getBalance(userId);
+
+    if (!userBalances || userBalances.length === 0) {
+      return false;
+    }
+    const userBalance = userBalances[0];
+    if (!userBalance) {
+      return false;
+    }
+
+    const freeBalance = new Decimal(userBalance.free);
+    if (freeBalance.lessThan(amount)) {
+      return false;
+    }
+
+    return db.transaction(async (tx) => {
+      const newFree = freeBalance.minus(amount);
+      const newTotal = new Decimal(userBalance.total).minus(amount);
+
+      await tx.update(balance)
+        .set({
+          total: newTotal.toNumber(),
+          free: newFree.toNumber(),
+          updatedAt: new Date(),
+        })
+        .where(eq(balance.userId, userId));
+      
+      await tx.insert(balanceLog).values({
+        userId,
+        delta: amount.negated().toNumber(),
+        type: LedgerTransactionType.WITHDRAWAL,
+      });
+      return true;
+    });
+  }
 }
 
 export const ledger = new Ledger();

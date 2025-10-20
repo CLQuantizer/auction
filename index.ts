@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { auctionEngine } from "./core/auctionEngine";
 import { orderRoutes } from "./routes/order";
 import { startDepositScanner } from "./core/cron/scanDeposit";
+import { withdrawRoutes } from "./routes/withdraw";
 
 console.log("Starting auction application...");
 
@@ -12,6 +13,7 @@ const app = new Hono();
 
 app.get("/", (c) => c.text("Welcome to the Auction Server!"));
 app.route("/api", orderRoutes);
+app.route("/api", withdrawRoutes);
 
 export default {
   port: 3000,
