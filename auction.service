@@ -7,7 +7,7 @@ After=network.target
 User=root
 
 # The absolute path to your project's root directory
-WorkingDirectory=~/auction
+WorkingDirectory=/root/auction
 
 # The command to start your application
 # Use `which bun` to find the absolute path to the bun executable
