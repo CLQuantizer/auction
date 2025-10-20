@@ -1,0 +1,24 @@
+[Unit]
+Description=Bun Auction Service
+After=network.target
+
+[Service]
+# The user and group that will run the service
+User=root
+
+# The absolute path to your project's root directory
+WorkingDirectory=~/auction
+
+# The command to start your application
+# Use `which bun` to find the absolute path to the bun executable
+ExecStart=bun run index.ts
+
+# Restart the service if it crashes
+Restart=always
+RestartSec=3
+
+# Set environment variables for production
+Environment="NODE_ENV=production"
+
+[Install]
+WantedBy=multi-user.target
