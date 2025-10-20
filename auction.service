@@ -11,7 +11,7 @@ WorkingDirectory=/root/auction
 
 # The command to start your application
 # Use `which bun` to find the absolute path to the bun executable
-ExecStart=bun run index.ts
+ExecStart=/root/.bun/bin/bun run index.ts
 
 # Restart the service if it crashes
 Restart=always
