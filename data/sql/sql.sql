@@ -54,3 +54,17 @@ CREATE TABLE withdrawals (
 CREATE INDEX idx_withdrawals_block_number ON withdrawals (block_number);
 CREATE INDEX idx_withdrawals_tx_to ON withdrawals (tx_to);
 CREATE INDEX idx_withdrawals_hash ON withdrawals (hash);
+
+-- Auctions table to store auction results
+CREATE TABLE auctions (
+    id SERIAL PRIMARY KEY,
+    clearing_price DOUBLE PRECISION,
+    volume DOUBLE PRECISION NOT NULL,
+    trade_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'completed',
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for auctions table for better query performance
+CREATE INDEX idx_auctions_created_at ON auctions (created_at DESC);
+CREATE INDEX idx_auctions_status ON auctions (status);

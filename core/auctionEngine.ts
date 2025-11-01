@@ -7,6 +7,7 @@ import { tradePublisher } from "./tradePublisher";
 import { marginGuard } from "./marginGuard";
 import { ledger } from "../data/ledger";
 import { LedgerTransactionType } from "../data/ledgerTypes";
+import { auctionRepository } from "../data/auction";
 
 class AuctionEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -32,8 +33,16 @@ class AuctionEngine {
       `\n--- Running auction at ${new Date().toLocaleTimeString()} ---`
     );
     const allOrders = orderBook.getOrders();
+    
     if (allOrders.length === 0) {
       console.log("No orders in the book. Skipping auction.");
+      // Persist auction with no trades
+      await auctionRepository.create({
+        clearingPrice: null,
+        volume: new Decimal(0),
+        tradeCount: 0,
+        status: 'no_orders',
+      });
       return;
     }
 
@@ -41,6 +50,13 @@ class AuctionEngine {
 
     if (clearingPrice === null || volume.isZero()) {
       console.log("No matching trades in this auction.");
+      // Persist auction with no trades
+      await auctionRepository.create({
+        clearingPrice: null,
+        volume: volume,
+        tradeCount: 0,
+        status: 'no_trades',
+      });
       return;
     }
 
@@ -118,6 +134,14 @@ class AuctionEngine {
 
     orderBook.updateOrders(remainingOrders);
     console.log(`${remainingOrders.length} orders remaining in the book.`);
+
+    // Persist auction data
+    await auctionRepository.create({
+      clearingPrice: clearingPrice,
+      volume: volume,
+      tradeCount: newTrades.length,
+      status: newTrades.length > 0 ? 'completed' : 'no_trades',
+    });
   }
 
   private async settleBalances(
