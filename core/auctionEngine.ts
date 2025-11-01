@@ -8,27 +8,28 @@ import { auctionPublisher } from "./auctionPublisher";
 import { marginGuard } from "./marginGuard";
 import { ledger } from "../data/ledger";
 import { LedgerTransactionType } from "../data/ledgerTypes";
+import { CronJob } from "cron";
 
 class AuctionEngine {
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private job: CronJob | null = null;
 
   start() {
     console.log("Auction engine started.");
-    this.timer = setInterval(
-      () => {
-        // Handle async errors properly
-        this.runAuction().catch((error) => {
-          console.error("Error running auction:", error);
-        });
-      },
-      AUCTION_INTERVAL_SECONDS * 1000
-    );
+    // Cron format: "*/5 * * * * *" = every 5 seconds (6-field format with seconds)
+    const cronExpression = `*/${AUCTION_INTERVAL_SECONDS} * * * * *`;
+    this.job = new CronJob(cronExpression, () => {
+      // Handle async errors properly
+      this.runAuction().catch((error) => {
+        console.error("Error running auction:", error);
+      });
+    });
+    this.job.start();
   }
 
   stop() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+    if (this.job) {
+      this.job.stop();
+      this.job = null;
       console.log("Auction engine stopped.");
     }
   }
