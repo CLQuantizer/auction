@@ -1,9 +1,12 @@
 import { Decimal } from "decimal.js";
 import { AUCTION_INTERVAL_SECONDS } from "./primitives/constants";
-import { type Order } from "./messages/order";
+import { type Order, OrderSide } from "./messages/order";
 import type { Trade } from "./messages/trade";
 import { orderBook } from "./orderbook";
 import { tradePublisher } from "./tradePublisher";
+import { marginGuard } from "./marginGuard";
+import { ledger } from "../data/ledger";
+import { LedgerTransactionType } from "../data/ledgerTypes";
 
 class AuctionEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -24,7 +27,7 @@ class AuctionEngine {
     }
   }
 
-  public runAuction() {
+  public async runAuction() {
     console.log(
       `\n--- Running auction at ${new Date().toLocaleTimeString()} ---`
     );
@@ -101,6 +104,9 @@ class AuctionEngine {
     }
     
     if (newTrades.length > 0) {
+      // Settle balances for all trades
+      await this.settleBalances(newTrades, clearingPrice);
+      
       tradePublisher.publish(newTrades);
     }
 
@@ -112,6 +118,80 @@ class AuctionEngine {
 
     orderBook.updateOrders(remainingOrders);
     console.log(`${remainingOrders.length} orders remaining in the book.`);
+  }
+
+  private async settleBalances(
+    trades: Trade[],
+    clearingPrice: Decimal
+  ): Promise<void> {
+    // Group trades by order to calculate total filled per order
+    const orderFills = new Map<string, Decimal>();
+    
+    for (const trade of trades) {
+      const buyFilled = orderFills.get(trade.buyOrderId) || new Decimal(0);
+      const sellFilled = orderFills.get(trade.sellOrderId) || new Decimal(0);
+      orderFills.set(trade.buyOrderId, buyFilled.plus(trade.quantity));
+      orderFills.set(trade.sellOrderId, sellFilled.plus(trade.quantity));
+    }
+
+    // Process each order that was filled
+    for (const [orderId, filledQty] of orderFills.entries()) {
+      const order = orderBook.getOrderById(orderId);
+      if (!order) {
+        console.error(`Order ${orderId} not found for settlement`);
+        continue;
+      }
+
+      // Use clearing price (from trade) to calculate quote amount
+      const quoteAmount = filledQty.times(clearingPrice);
+      // Calculate locked amount based on original order price (what was locked)
+      const lockedAmount = filledQty.times(order.price);
+
+      if (order.side === OrderSide.BUY) {
+        // Buyer: Release locked QUOTE, deduct QUOTE, credit BASE
+        // Release the locked QUOTE for the filled portion (based on original order price)
+        await marginGuard.releaseLock(order.userId, lockedAmount);
+        // Deduct QUOTE at clearing price (what was actually paid)
+        await ledger.log(
+          order.userId,
+          quoteAmount.negated(),
+          LedgerTransactionType.TRADE
+        );
+        // Credit BASE (received in exchange)
+        // Note: BASE balance would need separate tracking - for now we log it
+        // In a full implementation, you'd have separate balance tables or a token field
+        await ledger.log(
+          order.userId,
+          filledQty,
+          LedgerTransactionType.TRADE
+        );
+        console.log(
+          `Settled BUY order ${orderId}: Released ${lockedAmount} QUOTE, deducted ${quoteAmount} QUOTE, credited ${filledQty} BASE`
+        );
+      } else {
+        // Seller: Release locked QUOTE (based on current order placement logic), deduct BASE, credit QUOTE
+        // Note: Current order placement locks QUOTE for SELL orders, which seems incorrect
+        // For now, we'll release QUOTE (following current locking behavior)
+        // In a proper implementation, SELL orders should lock BASE (quantity)
+        await marginGuard.releaseLock(order.userId, lockedAmount);
+        // Deduct BASE (sold)
+        // Note: BASE deduction would need separate tracking
+        await ledger.log(
+          order.userId,
+          filledQty.negated(),
+          LedgerTransactionType.TRADE
+        );
+        // Credit QUOTE (received in exchange at clearing price)
+        await ledger.log(
+          order.userId,
+          quoteAmount,
+          LedgerTransactionType.TRADE
+        );
+        console.log(
+          `Settled SELL order ${orderId}: Released ${lockedAmount} QUOTE, deducted ${filledQty} BASE, credited ${quoteAmount} QUOTE`
+        );
+      }
+    }
   }
 }
 

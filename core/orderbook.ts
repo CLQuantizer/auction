@@ -84,6 +84,10 @@ class OrderBook {
     return this.asks.values().flatMap((c) => c.getOrders());
   }
 
+  getOrderById(orderId: string): Order | undefined {
+    return this.orderMap.get(orderId);
+  }
+
   updateOrders(orders: Order[]) {
     this.clear();
     for (const o of orders) {
