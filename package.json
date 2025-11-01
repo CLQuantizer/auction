@@ -17,7 +17,8 @@
     "drizzle-orm": "^0.44.6",
     "ethers": "^6.15.0",
     "hono": "^4.2.7",
-    "postgres": "^3.4.4"
+    "postgres": "^3.4.4",
+    "viem": "^2.38.5"
   },
   "peerDependencies": {
     "typescript": "^5"
