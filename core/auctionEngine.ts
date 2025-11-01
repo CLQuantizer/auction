@@ -4,10 +4,10 @@ import { type Order, OrderSide } from "./messages/order";
 import type { Trade } from "./messages/trade";
 import { orderBook } from "./orderbook";
 import { tradePublisher } from "./tradePublisher";
+import { auctionPublisher } from "./auctionPublisher";
 import { marginGuard } from "./marginGuard";
 import { ledger } from "../data/ledger";
 import { LedgerTransactionType } from "../data/ledgerTypes";
-import { auctionRepository } from "../data/auction";
 
 class AuctionEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -41,17 +41,15 @@ class AuctionEngine {
     
     if (allOrders.length === 0) {
       console.log("No orders in the book. Skipping auction.");
-      // Persist auction with no trades
-      try {
-        await auctionRepository.create({
-          clearingPrice: null,
-          volume: new Decimal(0),
-          tradeCount: 0,
-          status: 'no_orders',
-        });
-      } catch (error) {
-        console.error("Failed to persist auction (no orders):", error);
-      }
+      // Publish auction with no orders
+      await auctionPublisher.publish({
+        id: crypto.randomUUID(),
+        clearingPrice: null,
+        volume: new Decimal(0),
+        tradeCount: 0,
+        status: 'no_orders',
+        timestamp: Date.now(),
+      });
       return;
     }
 
@@ -59,17 +57,15 @@ class AuctionEngine {
 
     if (clearingPrice === null || volume.isZero()) {
       console.log("No matching trades in this auction.");
-      // Persist auction with no trades
-      try {
-        await auctionRepository.create({
-          clearingPrice: null,
-          volume: volume,
-          tradeCount: 0,
-          status: 'no_trades',
-        });
-      } catch (error) {
-        console.error("Failed to persist auction (no trades):", error);
-      }
+      // Publish auction with no trades
+      await auctionPublisher.publish({
+        id: crypto.randomUUID(),
+        clearingPrice: null,
+        volume: volume,
+        tradeCount: 0,
+        status: 'no_trades',
+        timestamp: Date.now(),
+      });
       return;
     }
 
@@ -138,7 +134,7 @@ class AuctionEngine {
         await this.settleBalances(newTrades, clearingPrice);
       } catch (error) {
         console.error("Error settling balances:", error);
-        // Still persist auction even if balance settlement fails
+        // Still publish auction even if balance settlement fails
       }
       
       tradePublisher.publish(newTrades);
@@ -153,19 +149,15 @@ class AuctionEngine {
     orderBook.updateOrders(remainingOrders);
     console.log(`${remainingOrders.length} orders remaining in the book.`);
 
-    // Persist auction data - always persist regardless of settlement success
-    try {
-      await auctionRepository.create({
-        clearingPrice: clearingPrice,
-        volume: volume,
-        tradeCount: newTrades.length,
-        status: newTrades.length > 0 ? 'completed' : 'no_trades',
-      });
-      console.log(`Auction persisted successfully with ${newTrades.length} trades`);
-    } catch (error) {
-      console.error("Failed to persist auction data:", error);
-      // Log the error but don't throw - we don't want to crash the auction engine
-    }
+    // Publish auction data
+    await auctionPublisher.publish({
+      id: crypto.randomUUID(),
+      clearingPrice: clearingPrice,
+      volume: volume,
+      tradeCount: newTrades.length,
+      status: newTrades.length > 0 ? 'completed' : 'no_trades',
+      timestamp: Date.now(),
+    });
   }
 
   private async settleBalances(
