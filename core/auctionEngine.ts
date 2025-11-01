@@ -15,7 +15,12 @@ class AuctionEngine {
   start() {
     console.log("Auction engine started.");
     this.timer = setInterval(
-      () => this.runAuction(),
+      () => {
+        // Handle async errors properly
+        this.runAuction().catch((error) => {
+          console.error("Error running auction:", error);
+        });
+      },
       AUCTION_INTERVAL_SECONDS * 1000
     );
   }
@@ -37,12 +42,16 @@ class AuctionEngine {
     if (allOrders.length === 0) {
       console.log("No orders in the book. Skipping auction.");
       // Persist auction with no trades
-      await auctionRepository.create({
-        clearingPrice: null,
-        volume: new Decimal(0),
-        tradeCount: 0,
-        status: 'no_orders',
-      });
+      try {
+        await auctionRepository.create({
+          clearingPrice: null,
+          volume: new Decimal(0),
+          tradeCount: 0,
+          status: 'no_orders',
+        });
+      } catch (error) {
+        console.error("Failed to persist auction (no orders):", error);
+      }
       return;
     }
 
@@ -51,12 +60,16 @@ class AuctionEngine {
     if (clearingPrice === null || volume.isZero()) {
       console.log("No matching trades in this auction.");
       // Persist auction with no trades
-      await auctionRepository.create({
-        clearingPrice: null,
-        volume: volume,
-        tradeCount: 0,
-        status: 'no_trades',
-      });
+      try {
+        await auctionRepository.create({
+          clearingPrice: null,
+          volume: volume,
+          tradeCount: 0,
+          status: 'no_trades',
+        });
+      } catch (error) {
+        console.error("Failed to persist auction (no trades):", error);
+      }
       return;
     }
 
@@ -121,7 +134,12 @@ class AuctionEngine {
     
     if (newTrades.length > 0) {
       // Settle balances for all trades
-      await this.settleBalances(newTrades, clearingPrice);
+      try {
+        await this.settleBalances(newTrades, clearingPrice);
+      } catch (error) {
+        console.error("Error settling balances:", error);
+        // Still persist auction even if balance settlement fails
+      }
       
       tradePublisher.publish(newTrades);
     }
@@ -135,13 +153,19 @@ class AuctionEngine {
     orderBook.updateOrders(remainingOrders);
     console.log(`${remainingOrders.length} orders remaining in the book.`);
 
-    // Persist auction data
-    await auctionRepository.create({
-      clearingPrice: clearingPrice,
-      volume: volume,
-      tradeCount: newTrades.length,
-      status: newTrades.length > 0 ? 'completed' : 'no_trades',
-    });
+    // Persist auction data - always persist regardless of settlement success
+    try {
+      await auctionRepository.create({
+        clearingPrice: clearingPrice,
+        volume: volume,
+        tradeCount: newTrades.length,
+        status: newTrades.length > 0 ? 'completed' : 'no_trades',
+      });
+      console.log(`Auction persisted successfully with ${newTrades.length} trades`);
+    } catch (error) {
+      console.error("Failed to persist auction data:", error);
+      // Log the error but don't throw - we don't want to crash the auction engine
+    }
   }
 
   private async settleBalances(
