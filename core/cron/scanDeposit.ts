@@ -1,46 +1,45 @@
 import { creditDeposit } from "./credit";
 import { createDeposit } from "../../data/deposit";
 import { Decimal } from "decimal.js";
-import { nodeReal } from "../../chain/nodereal";
+import { contractScanner, type DepositTransfer } from "../../chain/contractScanner";
 import { CronJob } from "cron";
 import {
   getLatestScannedBlock,
   updateLatestScannedBlock,
 } from "../../data/scanner";
-import { bnbChain } from "../../chain/bnb";
-import { BLOCK_SCAN_RANGE } from "../primitives/constants";
 
-const processTransaction = async (
-  tx: {
-    from: string;
-    to: string;
-    value: string;
-    hash: string;
-  },
-  blockNumber: number,
-) => {
-  console.log("processing transaction", JSON.stringify(tx, null, 2));
-  if (
-    tx.to.toLowerCase() === process.env.PUBLIC_KEY!.toLowerCase() &&
-    tx.from &&
-    tx.to &&
-    tx.value &&
-    tx.hash
-  ) {
-    console.log(`Deposit detected: ${tx.value} from ${tx.from}`);
+// Maximum block range per RPC request (NodeReal limit: 50,000 blocks)
+const MAX_BLOCK_RANGE = 50000;
+
+const processTransaction = async (deposit: DepositTransfer) => {
+  const from = deposit.from.toLowerCase();
+  const to = deposit.to.toLowerCase();
+  const publicKey = process.env.VITE_PUBLIC_PUBLIC_KEY?.toLowerCase() || 
+    process.env.PUBLIC_KEY?.toLowerCase();
+
+  if (!publicKey) {
+    console.error("PUBLIC_KEY or VITE_PUBLIC_PUBLIC_KEY not set");
+    return;
+  }
+
+  if (to === publicKey && deposit.from && deposit.to && deposit.value) {
+    const valueString = deposit.value.toString();
+    console.log(`Deposit detected: ${valueString} from ${from} in block ${deposit.blockNumber}`);
+    
     await createDeposit({
-      blockNumber: blockNumber,
-      from: tx.from,
-      to: tx.to,
-      value: tx.value,
-      hash: tx.hash,
+      blockNumber: deposit.blockNumber,
+      from: from,
+      to: to,
+      value: valueString,
+      hash: deposit.hash,
     });
-    const amount = new Decimal(tx.value).div(new Decimal(1e18));
+    
+    const amount = new Decimal(valueString).div(new Decimal(1e18));
     console.log(
-      `Crediting ${amount.toString()} to ${tx.from} in 15 seconds...`,
+      `Crediting ${amount.toString()} to ${from} in 15 seconds...`,
     );
     setTimeout(() => {
-      creditDeposit(tx.from!, amount, tx.hash!).catch(console.error);
+      creditDeposit(from, amount, deposit.hash).catch(console.error);
     }, 15000);
   }
 };
@@ -48,43 +47,78 @@ const processTransaction = async (
 export const scanDeposits = async () => {
   console.log("Scanning for deposits...");
   try {
-    const latestScannedBlock = await getLatestScannedBlock();
-    const latestChainBlock = await bnbChain.getLatestBlockNumber();
-    const fromBlock = latestScannedBlock + 1;
+    const lastScannedBlock = await getLatestScannedBlock();
+    const latestChainBlock = await contractScanner.getLatestBlockNumber();
+    // Scan up to 32 blocks before latest for safety (avoid reorgs)
+    const latestBlock = Math.max(0, latestChainBlock - 32);
+    let currentFromBlock = lastScannedBlock + 1;
 
-    if (fromBlock > latestChainBlock-BLOCK_SCAN_RANGE) {
+    // Skip if we're already at the latest block
+    if (currentFromBlock > latestBlock) {
       console.log("No new blocks to process.");
       return;
     }
 
-    const result = await nodeReal.getAssetTransfers(
-      process.env.PUBLIC_KEY!,
-      fromBlock,
-      ["20"],
-    );
+    const totalBlocksToScan = latestBlock - currentFromBlock + 1;
+    console.log(`Scanning blocks ${currentFromBlock} to ${latestBlock} (${totalBlocksToScan} blocks total)...`);
 
-    if (result && result.transfers && result.transfers.length > 0) {
-      for (const tx of result.transfers) {
-        await processTransaction(
-          {
-            from: tx.from,
-            to: tx.to,
-            value: tx.value,
-            hash: tx.hash,
-          },
-          parseInt(tx.blockNum, 16),
-        );
+    let allDeposits: DepositTransfer[] = [];
+
+    // Scan in chunks to respect the max block range limit
+    while (currentFromBlock <= latestBlock) {
+      const chunkToBlock = Math.min(
+        currentFromBlock + MAX_BLOCK_RANGE - 1,
+        latestBlock
+      );
+      const chunkSize = chunkToBlock - currentFromBlock + 1;
+
+      console.log(`  Scanning chunk: blocks ${currentFromBlock} to ${chunkToBlock} (${chunkSize} blocks)...`);
+
+      try {
+        const deposits = await contractScanner.scanDeposits(currentFromBlock, chunkToBlock);
+        allDeposits.push(...deposits);
+
+        // Update scanner table after each chunk to save progress
+        await updateLatestScannedBlock(chunkToBlock);
+        console.log(`  ✓ Scanned chunk, updated to block ${chunkToBlock}`);
+
+        // Move to next chunk
+        currentFromBlock = chunkToBlock + 1;
+      } catch (error: any) {
+        // If we hit an error, check if it's the block range error
+        if (error?.details?.includes("exceed maximum block range") || 
+            error?.message?.includes("exceed maximum block range")) {
+          console.error(`  Error: Block range too large. Reducing chunk size...`);
+          // If chunk size is already at max, something is wrong
+          if (chunkSize === MAX_BLOCK_RANGE) {
+            throw new Error(`Block range ${chunkSize} exceeds provider limit. Try reducing MAX_BLOCK_RANGE.`);
+          }
+          // Try with a smaller chunk
+          const smallerChunkToBlock = Math.min(
+            currentFromBlock + Math.floor(MAX_BLOCK_RANGE / 2) - 1,
+            latestBlock
+          );
+          const deposits = await contractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
+          allDeposits.push(...deposits);
+          await updateLatestScannedBlock(smallerChunkToBlock);
+          currentFromBlock = smallerChunkToBlock + 1;
+        } else {
+          throw error;
+        }
       }
-    } else {
-      console.log("No new transactions found.");
     }
 
-    const scannedUpToBlock = Math.min(
-      fromBlock + BLOCK_SCAN_RANGE,
-      latestChainBlock,
-    );
-    await updateLatestScannedBlock(scannedUpToBlock);
-    console.log(`Scanner updated to block ${scannedUpToBlock}`);
+    // Process all found deposits
+    if (allDeposits.length > 0) {
+      console.log(`Found ${allDeposits.length} deposit(s), processing...`);
+      for (const deposit of allDeposits) {
+        await processTransaction(deposit);
+      }
+    } else {
+      console.log(`No new deposits found (scanned ${totalBlocksToScan} blocks)`);
+    }
+
+    console.log(`✓ Completed scan, updated scanner to block ${latestBlock}`);
   } catch (error) {
     console.error("Error scanning for deposits:", error);
   }

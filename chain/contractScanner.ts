@@ -1,4 +1,4 @@
-import { createPublicClient, webSocket, parseAbi, type Address } from "viem";
+import { createPublicClient, http, parseAbi, type Address } from "viem";
 import { bsc } from "viem/chains";
 
 // ERC20 Transfer event ABI
@@ -18,7 +18,6 @@ export class ContractScanner {
   private client;
   private contractAddress: Address;
   private publicKey: Address;
-  private unsubscribe?: () => void;
 
   constructor(rpcUrl: string, contractAddress: Address, publicKey: Address) {
     if (!rpcUrl) {
@@ -33,7 +32,7 @@ export class ContractScanner {
 
     this.client = createPublicClient({
       chain: bsc,
-      transport: webSocket(rpcUrl),
+      transport: http(rpcUrl),
     });
     this.contractAddress = contractAddress.toLowerCase() as Address;
     this.publicKey = publicKey.toLowerCase() as Address;
@@ -107,48 +106,29 @@ export class ContractScanner {
   }
 
   /**
-   * Watch for new blocks and scan deposits on each block
-   * @param onDeposit Callback function called when deposits are found
+   * Scan deposits from the last scanned block to the latest block
+   * Uses the scanner table to track progress (call getLatestScannedBlock from scanner.ts)
+   * @param fromBlock Starting block number (typically lastScannedBlock + 1)
+   * @param onDeposit Optional callback function called when deposits are found
+   * @returns Array of deposit transfers
    */
-  watchBlocks(onDeposit: (deposits: DepositTransfer[]) => void) {
-    console.log("Starting to watch for new blocks...");
+  async scanFromBlock(
+    fromBlock: number,
+    onDeposit?: (deposits: DepositTransfer[]) => void,
+  ): Promise<DepositTransfer[]> {
+    const latestBlock = await this.getLatestBlockNumber();
+    const deposits = await this.scanDeposits(fromBlock, latestBlock);
     
-    this.unsubscribe = this.client.watchBlocks({
-      onBlock: async (block) => {
-        const blockNumber = Number(block.number);
-        console.log(`New block detected: ${blockNumber}`);
-        
-        try {
-          // Scan for deposits in the new block
-          const deposits = await this.scanDeposits(blockNumber, blockNumber);
-          
-          if (deposits.length > 0) {
-            console.log(`Found ${deposits.length} deposit(s) in block ${blockNumber}`);
-            onDeposit(deposits);
-          }
-        } catch (error) {
-          console.error(`Error scanning block ${blockNumber}:`, error);
-        }
-      },
-    });
-
-    return this.unsubscribe;
-  }
-
-  /**
-   * Stop watching for new blocks
-   */
-  stopWatching() {
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = undefined;
-      console.log("Stopped watching for new blocks");
+    if (deposits.length > 0 && onDeposit) {
+      onDeposit(deposits);
     }
+    
+    return deposits;
   }
 }
 
 // Export singleton instance with environment variables
-// NODEREAL_RPC_URL should be WebSocket URL like: wss://bsc-mainnet.nodereal.io/ws/v1/YOUR_API_KEY
+// NODEREAL_RPC_URL should be HTTP URL like: https://bsc-mainnet.nodereal.io/v1/YOUR_API_KEY
 export const contractScanner = new ContractScanner(
   process.env.NODEREAL_RPC_URL!,
   (process.env.VITE_PUBLIC_BASE_TOKEN_ADDRESS ||
