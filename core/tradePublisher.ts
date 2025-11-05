@@ -2,8 +2,7 @@ import type { Trade } from "./messages/trade";
 
 class TradePublisher {
   /**
-   * Publishes trades to a message queue.
-   * In a real implementation, this would send trades to a service like RabbitMQ or Kafka.
+   * Publishes trades to the auction service via HTTP POST.
    * @param trades - An array of trades to publish.
    */
   async publish(trades: Trade[]): Promise<void> {
@@ -11,10 +10,53 @@ class TradePublisher {
       return;
     }
 
-    console.log(`Publishing ${trades.length} trades to the message queue...`);
-    // Simulate an async operation
-    await new Promise(resolve => setTimeout(resolve, 50));
-    console.log("Trades published successfully.");
+    const serviceUrl = process.env.AUCTION_SERVICE_URL;
+    if (!serviceUrl) {
+      throw new Error("AUCTION_SERVICE_URL environment variable is not set");
+    }
+
+    console.log(`Publishing ${trades.length} trades to ${serviceUrl}...`);
+
+    // Send each trade individually
+    const results = await Promise.allSettled(
+      trades.map(async (trade) => {
+        const body = {
+          price: trade.price.toNumber(),
+          quantity: trade.quantity.toNumber(),
+          total: trade.price.times(trade.quantity).toNumber(),
+          // fee is optional, so we omit it
+        };
+
+        const response = await fetch(serviceUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => "Unknown error");
+          throw new Error(
+            `Failed to publish trade: ${response.status} ${response.statusText} - ${errorText}`
+          );
+        }
+
+        return response;
+      })
+    );
+
+    // Check for failures
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) {
+      const errors = failures.map((f) =>
+        f.status === "rejected" ? f.reason : "Unknown error"
+      );
+      console.error(`Failed to publish ${failures.length} trades:`, errors);
+      throw new Error(`Failed to publish ${failures.length} of ${trades.length} trades`);
+    }
+
+    console.log(`Successfully published ${trades.length} trades.`);
   }
 }
 
