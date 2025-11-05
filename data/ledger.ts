@@ -12,12 +12,7 @@ export const balance = pgTable('balance', {
   locked: doublePrecision('locked').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  pk: {
-    primaryKey: true,
-    columns: [table.userId, table.asset],
-  },
-}));
+});
 
 export const balanceLog = pgTable('balance_log', {
   userId: text('user_id').notNull(),
