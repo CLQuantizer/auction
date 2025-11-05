@@ -1,16 +1,19 @@
 -- Balance table to store user balances
 CREATE TABLE balance (
-    user_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    asset INTEGER NOT NULL,
     total DOUBLE PRECISION NOT NULL,
     free DOUBLE PRECISION NOT NULL,
     locked DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, asset)
 );
 
 -- Balance log table to record changes in balances
 CREATE TABLE balance_log (
-    user_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    asset INTEGER NOT NULL,
     delta DOUBLE PRECISION NOT NULL,
     type INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),

@@ -7,7 +7,7 @@ import { tradePublisher } from "./tradePublisher";
 import { auctionPublisher } from "./auctionPublisher";
 import { marginGuard } from "./marginGuard";
 import { ledger } from "../data/ledger";
-import { LedgerTransactionType } from "../data/ledgerTypes";
+import { LedgerTransactionType, Assets } from "../data/ledgerTypes";
 import { CronJob } from "cron";
 
 class AuctionEngine {
@@ -185,51 +185,53 @@ class AuctionEngine {
 
       // Use clearing price (from trade) to calculate quote amount
       const quoteAmount = filledQty.times(clearingPrice);
-      // Calculate locked amount based on original order price (what was locked)
-      const lockedAmount = filledQty.times(order.price);
+      
+      // Calculate locked amount based on order side
+      // BUY orders lock QUOTE value, SELL orders lock BASE quantity
+      const lockedAmount = order.side === OrderSide.BUY
+        ? filledQty.times(order.price)  // BUY: locked QUOTE value
+        : filledQty;                       // SELL: locked BASE quantity
 
       if (order.side === OrderSide.BUY) {
         // Buyer: Release locked QUOTE, deduct QUOTE, credit BASE
         // Release the locked QUOTE for the filled portion (based on original order price)
-        await marginGuard.releaseLock(order.userId, lockedAmount);
+        await marginGuard.releaseLock(order.userId, lockedAmount, Assets.QUOTE);
         // Deduct QUOTE at clearing price (what was actually paid)
         await ledger.log(
           order.userId,
           quoteAmount.negated(),
-          LedgerTransactionType.TRADE
+          LedgerTransactionType.TRADE,
+          Assets.QUOTE
         );
         // Credit BASE (received in exchange)
-        // Note: BASE balance would need separate tracking - for now we log it
-        // In a full implementation, you'd have separate balance tables or a token field
         await ledger.log(
           order.userId,
           filledQty,
-          LedgerTransactionType.TRADE
+          LedgerTransactionType.TRADE,
+          Assets.BASE
         );
         console.log(
           `Settled BUY order ${orderId}: Released ${lockedAmount} QUOTE, deducted ${quoteAmount} QUOTE, credited ${filledQty} BASE`
         );
       } else {
-        // Seller: Release locked QUOTE (based on current order placement logic), deduct BASE, credit QUOTE
-        // Note: Current order placement locks QUOTE for SELL orders, which seems incorrect
-        // For now, we'll release QUOTE (following current locking behavior)
-        // In a proper implementation, SELL orders should lock BASE (quantity)
-        await marginGuard.releaseLock(order.userId, lockedAmount);
+        // Seller: Release locked BASE, deduct BASE, credit QUOTE
+        await marginGuard.releaseLock(order.userId, lockedAmount, Assets.BASE);
         // Deduct BASE (sold)
-        // Note: BASE deduction would need separate tracking
         await ledger.log(
           order.userId,
           filledQty.negated(),
-          LedgerTransactionType.TRADE
+          LedgerTransactionType.TRADE,
+          Assets.BASE
         );
         // Credit QUOTE (received in exchange at clearing price)
         await ledger.log(
           order.userId,
           quoteAmount,
-          LedgerTransactionType.TRADE
+          LedgerTransactionType.TRADE,
+          Assets.QUOTE
         );
         console.log(
-          `Settled SELL order ${orderId}: Released ${lockedAmount} QUOTE, deducted ${filledQty} BASE, credited ${quoteAmount} QUOTE`
+          `Settled SELL order ${orderId}: Released ${lockedAmount} BASE, deducted ${filledQty} BASE, credited ${quoteAmount} QUOTE`
         );
       }
     }

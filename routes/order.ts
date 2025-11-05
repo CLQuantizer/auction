@@ -5,6 +5,7 @@ import { toDecimal } from "../core/primitives/constants";
 import { OrderSide } from "../core/messages/order";
 import { marginGuard } from "../core/marginGuard";
 import { Decimal } from "decimal.js";
+import { Assets } from "../data/ledgerTypes";
 
 type OrderPlacementEnv = {
   Variables: {
@@ -15,6 +16,7 @@ type OrderPlacementEnv = {
       quantity: Decimal;
     };
     lockAmount: Decimal;
+    asset: Assets;
   };
 };
 
@@ -43,9 +45,14 @@ const marginLockMiddleware = createMiddleware<OrderPlacementEnv>(
 
     const price = toDecimal(body.price);
     const quantity = toDecimal(body.quantity);
-    const lockAmount = price.times(quantity);
+    
+    // BUY orders lock QUOTE (to pay), SELL orders lock BASE (to sell)
+    const asset = body.side === OrderSide.BUY ? Assets.QUOTE : Assets.BASE;
+    const lockAmount = body.side === OrderSide.BUY 
+      ? price.times(quantity)  // BUY: lock QUOTE value
+      : quantity;                 // SELL: lock BASE quantity
 
-    const locked = await marginGuard.tryLock(body.userId, lockAmount);
+    const locked = await marginGuard.tryLock(body.userId, lockAmount, asset);
     if (!locked) {
       return c.text("Insufficient balance", 400);
     }
@@ -57,13 +64,15 @@ const marginLockMiddleware = createMiddleware<OrderPlacementEnv>(
       quantity,
     });
     c.set("lockAmount", lockAmount);
+    c.set("asset", asset);
 
     try {
       await next();
     } catch (e) {
       const { userId } = c.get("orderPayload");
       const amountToRelease = c.get("lockAmount");
-      await marginGuard.releaseLock(userId, amountToRelease);
+      const assetToRelease = c.get("asset");
+      await marginGuard.releaseLock(userId, amountToRelease, assetToRelease);
       console.error("Failed to place order, releasing lock:", e);
       return c.text("Failed to place order", 500);
     }
@@ -104,8 +113,12 @@ orderRoutes.post("/v1/orders/cancel", async (c) => {
     const canceledOrder = orderBook.cancelOrder(body.orderId, body.userId);
 
     if (canceledOrder) {
-      const releaseAmount = canceledOrder.price.times(canceledOrder.quantity);
-      await marginGuard.releaseLock(body.userId, releaseAmount);
+      // Determine asset and release amount based on order side
+      const asset = canceledOrder.side === OrderSide.BUY ? Assets.QUOTE : Assets.BASE;
+      const releaseAmount = canceledOrder.side === OrderSide.BUY
+        ? canceledOrder.price.times(canceledOrder.quantity)  // BUY: release QUOTE value
+        : canceledOrder.quantity;                             // SELL: release BASE quantity
+      await marginGuard.releaseLock(body.userId, releaseAmount, asset);
       return c.json({ success: true, orderId: body.orderId });
     } else {
       return c.text(

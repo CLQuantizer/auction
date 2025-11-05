@@ -106,6 +106,89 @@ export class ContractScanner {
   }
 
   /**
+   * Scan for native BNB transactions to the public key address
+   * @param fromBlock Starting block number
+   * @param toBlock Ending block number (optional, defaults to latest)
+   * @returns Array of deposit transfers
+   */
+  async scanNativeBNB(
+    fromBlock: number,
+    toBlock?: number,
+  ): Promise<DepositTransfer[]> {
+    console.log(
+      `Scanning native BNB deposits from block ${fromBlock} to block ${toBlock || "latest"}`,
+    );
+
+    const deposits: DepositTransfer[] = [];
+
+    try {
+      const latestBlock = await this.getLatestBlockNumber();
+      const toBlockNum = toBlock || latestBlock;
+      
+      // Scan blocks in chunks to avoid overwhelming the RPC
+      const chunkSize = 1000;
+      let currentBlock = fromBlock;
+      
+      while (currentBlock <= toBlockNum) {
+        const chunkEnd = Math.min(currentBlock + chunkSize - 1, toBlockNum);
+        
+        // Get transactions for each block in the chunk
+        const blockPromises: Promise<any[]>[] = [];
+        for (let blockNum = currentBlock; blockNum <= chunkEnd; blockNum++) {
+          blockPromises.push(
+            this.client.getBlock({ blockNumber: BigInt(blockNum), includeTransactions: true })
+              .then((block) => {
+                if (block && block.transactions) {
+                  return block.transactions
+                    .filter((tx: any) => {
+                      // Filter for transactions sent to our public key with value > 0
+                      return tx.to && 
+                             tx.to.toLowerCase() === this.publicKey &&
+                             tx.value && 
+                             tx.value > 0n &&
+                             tx.to !== '0x0000000000000000000000000000000000000000'; // Skip contract creation
+                    })
+                    .map((tx: any) => ({
+                      from: tx.from,
+                      to: tx.to,
+                      value: tx.value,
+                      hash: tx.hash,
+                      blockNumber: Number(block.number),
+                    }));
+                }
+                return [];
+              })
+              .catch((error) => {
+                console.error(`Error getting block ${blockNum}:`, error);
+                return [];
+              })
+          );
+        }
+        
+        const results = await Promise.all(blockPromises);
+        const chunkDeposits = results.flat();
+        
+        for (const deposit of chunkDeposits) {
+          deposits.push({
+            from: deposit.from,
+            to: deposit.to,
+            value: deposit.value,
+            hash: deposit.hash,
+            blockNumber: deposit.blockNumber,
+          });
+        }
+        
+        currentBlock = chunkEnd + 1;
+      }
+    } catch (error) {
+      console.error("Error scanning for native BNB deposits:", error);
+      throw error;
+    }
+
+    return deposits;
+  }
+
+  /**
    * Scan deposits from the last scanned block to the latest block
    * Uses the scanner table to track progress (call getLatestScannedBlock from scanner.ts)
    * @param fromBlock Starting block number (typically lastScannedBlock + 1)

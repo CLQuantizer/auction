@@ -1,7 +1,7 @@
 import { pgTable, text, doublePrecision, timestamp, serial } from 'drizzle-orm/pg-core';
 import { db } from './db';
 import { Decimal } from 'decimal.js';
-import { LedgerTransactionType } from './ledgerTypes';
+import { LedgerTransactionType, tokenToAsset } from './ledgerTypes';
 import { ledger } from './ledger';
 
 // user_id is quite simply the public_key of the user on the blockchain
@@ -29,7 +29,7 @@ export async function credit(userId: string, amount: Decimal, token: string) {
     amount: amount.toNumber(),
     token,
   });
-  return ledger.log(userId, amount, LedgerTransactionType.DEPOSIT);
+  return ledger.log(userId, amount, LedgerTransactionType.DEPOSIT, tokenToAsset(token));
 }
 
 export async function deduct(userId: string, amount: Decimal, token: string) {
@@ -38,5 +38,5 @@ export async function deduct(userId: string, amount: Decimal, token: string) {
     amount: amount.toNumber(),
     token,
   });
-  return ledger.log(userId, amount.negated(), LedgerTransactionType.WITHDRAWAL);
+  return ledger.log(userId, amount.negated(), LedgerTransactionType.WITHDRAWAL, tokenToAsset(token));
 }

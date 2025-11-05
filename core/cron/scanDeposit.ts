@@ -7,11 +7,12 @@ import {
   getLatestScannedBlock,
   updateLatestScannedBlock,
 } from "../../data/scanner";
+import { Assets } from "../../data/ledgerTypes";
 
 // Maximum block range per RPC request (NodeReal limit: 50,000 blocks)
 const MAX_BLOCK_RANGE = 50000;
 
-const processTransaction = async (deposit: DepositTransfer) => {
+const processTransaction = async (deposit: DepositTransfer, asset: Assets) => {
   const from = deposit.from.toLowerCase();
   const to = deposit.to.toLowerCase();
   const publicKey = process.env.VITE_PUBLIC_PUBLIC_KEY?.toLowerCase() || 
@@ -24,7 +25,8 @@ const processTransaction = async (deposit: DepositTransfer) => {
 
   if (to === publicKey && deposit.from && deposit.to && deposit.value) {
     const valueString = deposit.value.toString();
-    console.log(`Deposit detected: ${valueString} from ${from} in block ${deposit.blockNumber}`);
+    const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
+    console.log(`Deposit detected: ${valueString} ${assetName} from ${from} in block ${deposit.blockNumber}`);
     
     await createDeposit({
       blockNumber: deposit.blockNumber,
@@ -34,13 +36,13 @@ const processTransaction = async (deposit: DepositTransfer) => {
       hash: deposit.hash,
     });
     
-    const amount = new Decimal(valueString).div(new Decimal(1e18));
+    // BNB uses 18 decimals, BASE/QUOTE use 6 decimals
+    const decimals = asset === Assets.GAS ? 18 : 6;
+    const amount = new Decimal(valueString).div(new Decimal(10 ** decimals));
     console.log(
-      `Crediting ${amount.toString()} to ${from} in 15 seconds...`,
+      `Crediting ${amount.toString()} ${assetName} to ${from}...`,
     );
-    setTimeout(() => {
-      creditDeposit(from, amount, deposit.hash).catch(console.error);
-    }, 15000);
+    await creditDeposit(from, amount, deposit.hash, asset);
   }
 };
 
@@ -62,7 +64,7 @@ export const scanDeposits = async () => {
     const totalBlocksToScan = latestBlock - currentFromBlock + 1;
     console.log(`Scanning blocks ${currentFromBlock} to ${latestBlock} (${totalBlocksToScan} blocks total)...`);
 
-    let allDeposits: DepositTransfer[] = [];
+    let totalDepositsFound = 0;
 
     // Scan in chunks to respect the max block range limit
     while (currentFromBlock <= latestBlock) {
@@ -75,8 +77,19 @@ export const scanDeposits = async () => {
       console.log(`  Scanning chunk: blocks ${currentFromBlock} to ${chunkToBlock} (${chunkSize} blocks)...`);
 
       try {
-        const deposits = await contractScanner.scanDeposits(currentFromBlock, chunkToBlock);
-        allDeposits.push(...deposits);
+        // Scan for ERC20 token deposits (BASE)
+        const erc20Deposits = await contractScanner.scanDeposits(currentFromBlock, chunkToBlock);
+        totalDepositsFound += erc20Deposits.length;
+        for (const deposit of erc20Deposits) {
+          await processTransaction(deposit, Assets.BASE);
+        }
+
+        // Scan for native BNB deposits
+        const bnbDeposits = await contractScanner.scanNativeBNB(currentFromBlock, chunkToBlock);
+        totalDepositsFound += bnbDeposits.length;
+        for (const deposit of bnbDeposits) {
+          await processTransaction(deposit, Assets.GAS);
+        }
 
         // Update scanner table after each chunk to save progress
         await updateLatestScannedBlock(chunkToBlock);
@@ -98,8 +111,15 @@ export const scanDeposits = async () => {
             currentFromBlock + Math.floor(MAX_BLOCK_RANGE / 2) - 1,
             latestBlock
           );
-          const deposits = await contractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
-          allDeposits.push(...deposits);
+          const erc20Deposits = await contractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
+          const bnbDeposits = await contractScanner.scanNativeBNB(currentFromBlock, smallerChunkToBlock);
+          totalDepositsFound += erc20Deposits.length + bnbDeposits.length;
+          for (const deposit of erc20Deposits) {
+            await processTransaction(deposit, Assets.BASE);
+          }
+          for (const deposit of bnbDeposits) {
+            await processTransaction(deposit, Assets.GAS);
+          }
           await updateLatestScannedBlock(smallerChunkToBlock);
           currentFromBlock = smallerChunkToBlock + 1;
         } else {
@@ -108,12 +128,9 @@ export const scanDeposits = async () => {
       }
     }
 
-    // Process all found deposits
-    if (allDeposits.length > 0) {
-      console.log(`Found ${allDeposits.length} deposit(s), processing...`);
-      for (const deposit of allDeposits) {
-        await processTransaction(deposit);
-      }
+    // Summary
+    if (totalDepositsFound > 0) {
+      console.log(`Found ${totalDepositsFound} deposit(s) total`);
     } else {
       console.log(`No new deposits found (scanned ${totalBlocksToScan} blocks)`);
     }

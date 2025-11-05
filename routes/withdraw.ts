@@ -5,6 +5,7 @@ import {
   WITHDRAWAL_FEE_PERCENT,
 } from "../core/primitives/constants";
 import { createWithdrawal } from "../data/withdraw";
+import { Assets, tokenToAsset } from "../data/ledgerTypes";
 
 export const withdrawRoutes = new Hono();
 
@@ -16,7 +17,7 @@ withdrawRoutes.post("/withdraw", async (c) => {
     return c.text("Invalid JSON", 400);
   }
 
-  const { userId, amount, toAddress } = body;
+  const { userId, amount, toAddress, token } = body;
 
   if (!userId || !amount || !toAddress) {
     return c.text("Missing required fields", 400);
@@ -28,10 +29,13 @@ withdrawRoutes.post("/withdraw", async (c) => {
     return c.text("Invalid withdrawal amount", 400);
   }
 
+  // Determine asset from token parameter, default to BASE if not provided
+  const asset = token ? tokenToAsset(token) : Assets.BASE;
+
   const fee = withdrawalAmount.mul(WITHDRAWAL_FEE_PERCENT);
   const amountToSend = withdrawalAmount.sub(fee);
 
-  const success = await ledger.withdraw(userId, withdrawalAmount);
+  const success = await ledger.withdraw(userId, withdrawalAmount, asset);
 
   if (!success) {
     return c.text("Insufficient balance or user not found", 400);

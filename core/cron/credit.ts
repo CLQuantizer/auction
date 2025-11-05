@@ -1,16 +1,18 @@
 import { ledger } from "../../data/ledger";
 import { Decimal } from "decimal.js";
-import { LedgerTransactionType } from "../../data/ledgerTypes";
+import { LedgerTransactionType, Assets } from "../../data/ledgerTypes";
 
 export async function creditDeposit(
   userId: string,
   amount: Decimal,
-  txHash: string
+  txHash: string,
+  asset: Assets = Assets.BASE
 ) {
   try {
-    await ledger.log(userId, amount, LedgerTransactionType.DEPOSIT);
+    await ledger.log(userId, amount, LedgerTransactionType.DEPOSIT, asset);
+    const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
     console.log(
-      `Successfully credited ${amount} to ${userId} for transaction ${txHash}`
+      `Successfully credited ${amount} ${assetName} to ${userId} for transaction ${txHash}`
     );
   } catch (error) {
     console.error(
