@@ -40,7 +40,7 @@ test("auction should not find a clearing price when orders do not cross", () => 
   expect(volume.isZero()).toBe(true);
 });
 
-test("auction should correctly handle remaining and partially filled orders", () => {
+test("auction should correctly handle remaining and partially filled orders", async () => {
   // Arrange
   // Total Buy: 15 @ >=102
   // Total Sell: 20 @ <=102
@@ -84,7 +84,7 @@ test("auction should correctly handle remaining and partially filled orders", ()
   });
 
   // Act
-  auctionEngine.runAuction();
+  await auctionEngine.runAuction();
 
   // Assert
   const remainingBuyOrders = orderBook.getBuyOrders();

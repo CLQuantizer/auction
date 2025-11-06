@@ -76,6 +76,7 @@ class AuctionEngine {
 
     const newTrades: Trade[] = [];
     let filledVolume = new Decimal(0);
+    // Get orders that can participate in matching
     const buyOrders = orderBook
       .getBuyOrders()
       .filter((o) => o.price.gte(clearingPrice));
@@ -84,10 +85,20 @@ class AuctionEngine {
       .getSellOrders()
       .filter((o) => o.price.lte(clearingPrice));
 
+    // Start with unmatched orders (won't participate in matching)
     const remainingOrders: Order[] = [
       ...orderBook.getBuyOrders().filter((o) => o.price.lt(clearingPrice)),
       ...orderBook.getSellOrders().filter((o) => o.price.gt(clearingPrice)),
     ];
+
+    // Track order quantities as we match
+    const orderQuantities = new Map<string, Decimal>();
+    buyOrders.forEach((o) => {
+      orderQuantities.set(o.id, new Decimal(o.quantity));
+    });
+    sellOrders.forEach((o) => {
+      orderQuantities.set(o.id, new Decimal(o.quantity));
+    });
 
     let buyIndex = 0;
     let sellIndex = 0;
@@ -100,10 +111,10 @@ class AuctionEngine {
       const buyOrder = buyOrders[buyIndex]!;
       const sellOrder = sellOrders[sellIndex]!;
 
-      const tradeQuantity = Decimal.min(
-        buyOrder.quantity,
-        sellOrder.quantity
-      );
+      const buyRemaining = orderQuantities.get(buyOrder.id)!;
+      const sellRemaining = orderQuantities.get(sellOrder.id)!;
+
+      const tradeQuantity = Decimal.min(buyRemaining, sellRemaining);
 
       const trade: Trade = {
         id: crypto.randomUUID(),
@@ -118,13 +129,14 @@ class AuctionEngine {
       console.log(`New Trade: ${trade.quantity} @ ${trade.price}`);
       filledVolume = filledVolume.plus(tradeQuantity);
 
-      buyOrder.quantity = buyOrder.quantity.minus(tradeQuantity);
-      sellOrder.quantity = sellOrder.quantity.minus(tradeQuantity);
+      // Update remaining quantities
+      orderQuantities.set(buyOrder.id, buyRemaining.minus(tradeQuantity));
+      orderQuantities.set(sellOrder.id, sellRemaining.minus(tradeQuantity));
 
-      if (buyOrder.quantity.isZero()) {
+      if (orderQuantities.get(buyOrder.id)!.isZero()) {
         buyIndex++;
       }
-      if (sellOrder.quantity.isZero()) {
+      if (orderQuantities.get(sellOrder.id)!.isZero()) {
         sellIndex++;
       }
     }
@@ -138,27 +150,49 @@ class AuctionEngine {
         // Still publish auction even if balance settlement fails
       }
       
-      tradePublisher.publish(newTrades);
+      try {
+        await tradePublisher.publish(newTrades);
+      } catch (error) {
+        console.error("Error publishing trades:", error);
+        // Don't fail the auction if publishing fails
+      }
     }
 
+    // Add remaining orders from matched orders (only those with quantity > 0)
     [...buyOrders, ...sellOrders].forEach((o) => {
-      if (o.quantity.greaterThan(0)) {
-        remainingOrders.push(o);
+      const remainingQty = orderQuantities.get(o.id);
+      if (!remainingQty) {
+        return;
+      }
+      if (remainingQty.greaterThan(0)) {
+        remainingOrders.push({ ...o, quantity: remainingQty });
       }
     });
 
-    orderBook.updateOrders(remainingOrders);
-    console.log(`${remainingOrders.length} orders remaining in the book.`);
+    // Deduplicate by order ID (in case an order appears in both unmatched and matched lists)
+    const orderMap = new Map<string, Order>();
+    remainingOrders.forEach((order) => {
+      orderMap.set(order.id, order);
+    });
+    const uniqueRemainingOrders = Array.from(orderMap.values());
+
+    orderBook.updateOrders(uniqueRemainingOrders);
+    console.log(`${uniqueRemainingOrders.length} orders remaining in the book.`);
 
     // Publish auction data
-    await auctionPublisher.publish({
-      id: crypto.randomUUID(),
-      clearingPrice: clearingPrice,
-      volume: volume,
-      tradeCount: newTrades.length,
-      status: newTrades.length > 0 ? 'completed' : 'no_trades',
-      timestamp: Date.now(),
-    });
+    try {
+      await auctionPublisher.publish({
+        id: crypto.randomUUID(),
+        clearingPrice: clearingPrice,
+        volume: volume,
+        tradeCount: newTrades.length,
+        status: newTrades.length > 0 ? 'completed' : 'no_trades',
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error("Error publishing auction:", error);
+      // Don't fail the auction if publishing fails
+    }
   }
 
   private async settleBalances(

@@ -34,22 +34,14 @@ interface BscScanResponse {
 
 export class BnbChain {
   private endpoint: string;
-  private bscScanApiUrl?: string;
-  private bscScanApiKey?: string;
-  public readonly useBscScan: boolean;
 
   constructor(
     endpoint: string,
-    bscScanApiUrl?: string,
-    bscScanApiKey?: string,
   ) {
     if (!endpoint) {
       throw new Error("RPC endpoint is not provided");
     }
     this.endpoint = endpoint;
-    this.bscScanApiUrl = bscScanApiUrl;
-    this.bscScanApiKey = bscScanApiKey;
-    this.useBscScan = !!(this.bscScanApiUrl && this.bscScanApiKey);
   }
 
   async getBlockByNumber(blockNumber: number, withTransactions: boolean = false) {
@@ -138,21 +130,7 @@ export class BnbChain {
   }
 
   async getTransactionsForAddress(address: string, startBlock: number = 0) {
-    if (!this.useBscScan) {
-      throw new Error("BscScan API URL or Key not configured");
-    }
-    const url = `${this.bscScanApiUrl}?module=account&action=txlist&address=${address}&startblock=${startBlock}&endblock=99999999&sort=asc&apikey=${this.bscScanApiKey}`;
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = (await response.json()) as BscScanResponse;
-    if (data.status !== "1" && data.message !== 'No transactions found') {
-      throw new Error(`BscScan API error: ${data.message}`);
-    }
-    return data.result;
+    throw new Error("BscScan functionality has been removed. Use RPC methods instead.");
   }
 
   async getBep20TokenBalance(tokenAddress: string, walletAddress: string): Promise<bigint> {
@@ -190,7 +168,5 @@ export class BnbChain {
 }
 
 export const bnbChain = new BnbChain(
-  process.env.MAINNET_RPC_URL!,
-  process.env.BSCSCAN_API_URL,
-  process.env.BSCSCAN_API_KEY,
+  process.env.NODEREAL_RPC_URL!,
 );

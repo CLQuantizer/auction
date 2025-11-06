@@ -90,8 +90,16 @@ class OrderBook {
 
   updateOrders(orders: Order[]) {
     this.clear();
-    for (const o of orders) {
-      this.placeOrder(o);
+    for (const order of orders) {
+      // Preserve original order ID and timestamp
+      const map = order.side === OrderSide.BUY ? this.bids : this.asks;
+      let collection = map.get(order.price);
+      if (!collection) {
+        collection = new PriceLevel();
+        map.set(order.price, collection);
+      }
+      collection.addOrder(order);
+      this.orderMap.set(order.id, order);
     }
   }
 

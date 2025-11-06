@@ -20,12 +20,12 @@ describe("BnbChain", () => {
   });
 
   it("should get balance for a given address on testnet", async () => {
-    const testnetRpcUrl = process.env.TESTNET_RPC_URL;
-    if (!testnetRpcUrl) {
-      throw new Error("TESTNET_RPC_URL is not set. Please add it to your environment variables.");
+    const rpcUrl = process.env.NODEREAL_RPC_URL;
+    if (!rpcUrl) {
+      throw new Error("NODEREAL_RPC_URL is not set. Please add it to your environment variables.");
     }
 
-    const bnbTestnetChain = new BnbChain(testnetRpcUrl);
+    const bnbTestnetChain = new BnbChain(rpcUrl);
     const publicKey = "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F";
     const balance = await bnbTestnetChain.getBalance(publicKey);
 
