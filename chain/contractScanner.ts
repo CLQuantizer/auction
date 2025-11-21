@@ -18,8 +18,9 @@ export class ContractScanner {
   private client;
   private contractAddress: Address;
   private publicKey: Address;
+  private tokenName: string;
 
-  constructor(rpcUrl: string, contractAddress: Address, publicKey: Address) {
+  constructor(rpcUrl: string, contractAddress: Address, publicKey: Address, tokenName: string = "Token") {
     if (!rpcUrl) {
       throw new Error("RPC endpoint is not provided");
     }
@@ -38,6 +39,7 @@ export class ContractScanner {
     });
     this.contractAddress = contractAddress.toLowerCase() as Address;
     this.publicKey = publicKey.toLowerCase() as Address;
+    this.tokenName = tokenName;
   }
 
   /**
@@ -51,7 +53,7 @@ export class ContractScanner {
     toBlock?: number,
   ): Promise<DepositTransfer[]> {
     console.log(
-      `Scanning BaseCoin deposits from block ${fromBlock} to block ${toBlock || "latest"}`,
+      `Scanning ${this.tokenName} deposits from block ${fromBlock} to block ${toBlock || "latest"}`,
     );
 
     const deposits: DepositTransfer[] = [];
@@ -221,13 +223,15 @@ export const baseContractScanner = new ContractScanner(
     "0xeecbc280f257f3cb191e4b01feedb61cf42d5160") as Address,
   (process.env.VITE_PUBLIC_PUBLIC_KEY ||
     "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F") as Address,
+  "BaseCoin"
 );
 
 export const quoteContractScanner = new ContractScanner(
   process.env.NODEREAL_RPC_URL!,
   (process.env.VITE_PUBLIC_QUOTE_TOKEN_ADDRESS ||
-    "0x55d398326f99059fF775485246999027B3197955") as Address, // USDT on BSC
+    "0x690dffd8b28e614f2a582c1fedaf9ee316f8c93f") as Address,
   (process.env.VITE_PUBLIC_PUBLIC_KEY ||
     "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F") as Address,
+  "QuoteCoin"
 );
 

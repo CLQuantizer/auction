@@ -29,11 +29,23 @@ const processTransaction = async (deposit: DepositTransfer, asset: Assets) => {
     return;
   }
 
-  if (to === publicKey && deposit.from && deposit.to && deposit.value) {
-    const valueString = deposit.value.toString();
-    const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
-    console.log(`Deposit detected: ${valueString} ${assetName} from ${from} in block ${deposit.blockNumber}`);
-    
+  const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
+  
+  // Debug logging
+  if (to !== publicKey) {
+    console.log(`[DEBUG] Skipping deposit: to (${to}) !== publicKey (${publicKey})`);
+    return;
+  }
+  
+  if (!deposit.from || !deposit.to || !deposit.value) {
+    console.log(`[DEBUG] Skipping deposit: missing required fields (from: ${deposit.from}, to: ${deposit.to}, value: ${deposit.value})`);
+    return;
+  }
+
+  const valueString = deposit.value.toString();
+  console.log(`Deposit detected: ${valueString} ${assetName} from ${from} in block ${deposit.blockNumber}`);
+  
+  try {
     await createDeposit({
       blockNumber: deposit.blockNumber,
       from: from,
@@ -48,7 +60,12 @@ const processTransaction = async (deposit: DepositTransfer, asset: Assets) => {
     console.log(
       `Crediting ${amount.toString()} ${assetName} to ${from}...`
     );
+    
     await creditDeposit(from, amount, deposit.hash, asset);
+    console.log(`✓ Successfully processed ${assetName} deposit from ${from}`);
+  } catch (error) {
+    console.error(`✗ Error processing ${assetName} deposit from ${from}:`, error);
+    throw error; // Re-throw to ensure we know about failures
   }
 };
 
@@ -174,7 +191,7 @@ export const scanDeposits = async () => {
 };
 
 // Run every 30 seconds
-export const scanDepositJob = new CronJob("*/10 * * * * *", scanDeposits);
+export const scanDepositJob = new CronJob("* */1 * * * *", scanDeposits);
 
 export const startDepositScanner = () => {
   console.log("Starting deposit scanner cron job...");

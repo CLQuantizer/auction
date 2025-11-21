@@ -8,18 +8,29 @@ export async function creditDeposit(
   txHash: string,
   asset: Assets = Assets.BASE
 ) {
+  const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
+  
   try {
+    console.log(`[creditDeposit] Attempting to credit ${amount.toString()} ${assetName} to ${userId} (asset enum: ${asset})`);
     await ledger.log(userId, amount, LedgerTransactionType.DEPOSIT, asset);
-    const assetName = asset === Assets.GAS ? "BNB" : asset === Assets.BASE ? "BASE" : "QUOTE";
     console.log(
-      `Successfully credited ${amount} ${assetName} to ${userId} for transaction ${txHash}`
+      `Successfully credited ${amount.toString()} ${assetName} to ${userId} for transaction ${txHash}`
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error(
-      `Failed to credit ${amount} to ${userId} for transaction ${txHash}:`,
+      `✗ Failed to credit ${amount.toString()} ${assetName} to ${userId} for transaction ${txHash}:`,
       error
     );
-    // Here you might want to add more robust error handling,
-    // like saving the failed transaction to a queue to be retried later.
+    console.error(`Error details:`, {
+      message: error?.message,
+      stack: error?.stack,
+      userId,
+      amount: amount.toString(),
+      asset,
+      assetName,
+      txHash
+    });
+    // Re-throw the error so the caller knows it failed
+    throw error;
   }
 }
