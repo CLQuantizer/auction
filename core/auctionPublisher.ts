@@ -6,13 +6,18 @@ class AuctionPublisher {
    * @param auction - The auction to publish.
    */
   async publish(auction: Auction): Promise<void> {
+    if (auction.volume.lessThanOrEqualTo(0)) {
+      console.log("Skipping auction publication due to zero or negative volume.");
+      return;
+    }
+
     const serviceUrl = process.env.AUCTION_SERVICE_URL;
     if (!serviceUrl) {
       throw new Error("AUCTION_SERVICE_URL environment variable is not set");
     }
 
     const baseUrl = serviceUrl.replace(/\/$/, ""); // Remove trailing slash if present
-    const endpoint = `${baseUrl}/auction`;
+    const endpoint = `${baseUrl}/auctions`;
 
     console.log(`Publishing auction ${auction.id} to ${endpoint}...`);
 
