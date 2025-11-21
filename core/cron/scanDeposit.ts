@@ -109,9 +109,9 @@ export const scanDeposits = async () => {
         // Scan for ERC20 token deposits (BASE)
         const erc20Deposits = await baseContractScanner.scanDeposits(currentFromBlock, chunkToBlock);
         totalDepositsFound += erc20Deposits.length;
-        for (const deposit of erc20Deposits) {
-          await processTransaction(deposit, Assets.BASE);
-        }
+        // Process deposits in parallel batches to improve performance
+        const basePromises = erc20Deposits.map(deposit => processTransaction(deposit, Assets.BASE));
+        await Promise.allSettled(basePromises);
 
         // Scan for ERC20 token deposits (QUOTE)
         const quoteDeposits = await quoteContractScanner.scanDeposits(
@@ -119,9 +119,9 @@ export const scanDeposits = async () => {
           chunkToBlock
         );
         totalDepositsFound += quoteDeposits.length;
-        for (const deposit of quoteDeposits) {
-          await processTransaction(deposit, Assets.QUOTE);
-        }
+        // Process deposits in parallel batches to improve performance
+        const quotePromises = quoteDeposits.map(deposit => processTransaction(deposit, Assets.QUOTE));
+        await Promise.allSettled(quotePromises);
 
         // Scan for native BNB deposits
         // const bnbDeposits = await contractScanner.scanNativeBNB(
@@ -157,12 +157,10 @@ export const scanDeposits = async () => {
           const quoteDeposits = await quoteContractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
           // const bnbDeposits = await contractScanner.scanNativeBNB(currentFromBlock, smallerChunkToBlock);
           totalDepositsFound += erc20Deposits.length + quoteDeposits.length; // + bnbDeposits.length;
-          for (const deposit of erc20Deposits) {
-            await processTransaction(deposit, Assets.BASE);
-          }
-          for (const deposit of quoteDeposits) {
-            await processTransaction(deposit, Assets.QUOTE);
-          }
+          // Process deposits in parallel batches
+          const basePromises = erc20Deposits.map(deposit => processTransaction(deposit, Assets.BASE));
+          const quotePromises = quoteDeposits.map(deposit => processTransaction(deposit, Assets.QUOTE));
+          await Promise.allSettled([...basePromises, ...quotePromises]);
           // for (const deposit of bnbDeposits) {
           //   await processTransaction(deposit, Assets.GAS);
           // }

@@ -58,3 +58,14 @@ CREATE TABLE withdrawals (
 CREATE INDEX idx_withdrawals_block_number ON withdrawals (block_number);
 CREATE INDEX idx_withdrawals_tx_to ON withdrawals (tx_to);
 CREATE INDEX idx_withdrawals_hash ON withdrawals (hash);
+
+-- Indexes for balance_log table for better query performance
+CREATE INDEX idx_balance_log_user_id ON balance_log (user_id);
+CREATE INDEX idx_balance_log_asset ON balance_log (asset);
+CREATE INDEX idx_balance_log_user_asset ON balance_log (user_id, asset);
+CREATE INDEX idx_balance_log_created_at ON balance_log (created_at);
+
+-- Indexes for deposits table for better query performance
+CREATE INDEX idx_deposits_block_number ON deposits (block_number);
+CREATE INDEX idx_deposits_tx_from ON deposits (tx_from);
+CREATE INDEX idx_deposits_tx_to ON deposits (tx_to);

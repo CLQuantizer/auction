@@ -99,7 +99,10 @@ class Ledger {
 
   async log(userId: string, delta: Decimal, type: LedgerTransactionType, asset: Assets) {
     return db.transaction(async (tx) => {
-      const userBalances = await this.getBalance(userId, asset);
+      // Query balance within transaction context to avoid race conditions
+      const userBalances = await tx.select().from(balance).where(
+        and(eq(balance.userId, userId), eq(balance.asset, asset))
+      );
 
       if (!userBalances || userBalances.length === 0) {
         await tx.insert(balance).values({
