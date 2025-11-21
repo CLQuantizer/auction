@@ -1,4 +1,4 @@
-import { contractScanner } from "../chain/contractScanner";
+import { baseContractScanner } from "../chain/contractScanner";
 import type { DepositTransfer } from "../chain/contractScanner";
 import { formatUnits } from "viem";
 import { getLatestScannedBlock, updateLatestScannedBlock } from "../data/scanner";
@@ -35,7 +35,7 @@ let transferCount = 0;
 async function scanForTransfers() {
   try {
     const lastScannedBlock = await getLatestScannedBlock();
-    const latestChainBlock = await contractScanner.getLatestBlockNumber();
+    const latestChainBlock = await baseContractScanner.getLatestBlockNumber();
     // Scan up to 32 blocks before latest for safety (avoid reorgs)
     const latestBlock = Math.max(0, latestChainBlock - 32);
     let currentFromBlock = lastScannedBlock + 1;
@@ -62,7 +62,7 @@ async function scanForTransfers() {
       console.log(`  Scanning chunk: blocks ${currentFromBlock} to ${chunkToBlock} (${chunkSize} blocks)...`);
 
       try {
-        const deposits = await contractScanner.scanDeposits(currentFromBlock, chunkToBlock);
+        const deposits = await baseContractScanner.scanDeposits(currentFromBlock, chunkToBlock);
         allDeposits.push(...deposits);
         scannedBlocks += chunkSize;
 
@@ -86,7 +86,7 @@ async function scanForTransfers() {
             currentFromBlock + Math.floor(MAX_BLOCK_RANGE / 2) - 1,
             latestBlock
           );
-          const deposits = await contractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
+          const deposits = await baseContractScanner.scanDeposits(currentFromBlock, smallerChunkToBlock);
           allDeposits.push(...deposits);
           scannedBlocks += (smallerChunkToBlock - currentFromBlock + 1);
           await updateLatestScannedBlock(smallerChunkToBlock);

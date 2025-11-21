@@ -25,9 +25,9 @@ export const getLatestScannedBlock = async () => {
 export const updateLatestScannedBlock = async (blockNumber: number) => {
   await db
     .insert(scannedBlocks)
-    .values({ id: SCANNER_ID, blockNumber })
+    .values({ id: SCANNER_ID, blockNumber, createdAt: new Date() })
     .onConflictDoUpdate({
       target: scannedBlocks.id,
-      set: { blockNumber },
+      set: { blockNumber, createdAt: new Date() },
     });
 };

@@ -32,7 +32,9 @@ export class ContractScanner {
 
     this.client = createPublicClient({
       chain: bsc,
-      transport: http(rpcUrl),
+      transport: http(rpcUrl, {
+        batch: true,
+      }),
     });
     this.contractAddress = contractAddress.toLowerCase() as Address;
     this.publicKey = publicKey.toLowerCase() as Address;
@@ -126,7 +128,8 @@ export class ContractScanner {
       const toBlockNum = toBlock || latestBlock;
       
       // Scan blocks in chunks to avoid overwhelming the RPC
-      const chunkSize = 1000;
+      // With batching enabled, we can handle efficient chunks (NodeReal/typical providers handle ~100 per batch well)
+      const chunkSize = 100;
       let currentBlock = fromBlock;
       
       while (currentBlock <= toBlockNum) {
@@ -212,10 +215,18 @@ export class ContractScanner {
 
 // Export singleton instance with environment variables
 // NODEREAL_RPC_URL should be HTTP URL like: https://bsc-mainnet.nodereal.io/v1/YOUR_API_KEY
-export const contractScanner = new ContractScanner(
+export const baseContractScanner = new ContractScanner(
   process.env.NODEREAL_RPC_URL!,
   (process.env.VITE_PUBLIC_BASE_TOKEN_ADDRESS ||
     "0xeecbc280f257f3cb191e4b01feedb61cf42d5160") as Address,
+  (process.env.VITE_PUBLIC_PUBLIC_KEY ||
+    "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F") as Address,
+);
+
+export const quoteContractScanner = new ContractScanner(
+  process.env.NODEREAL_RPC_URL!,
+  (process.env.VITE_PUBLIC_QUOTE_TOKEN_ADDRESS ||
+    "0x55d398326f99059fF775485246999027B3197955") as Address, // USDT on BSC
   (process.env.VITE_PUBLIC_PUBLIC_KEY ||
     "0x3463defEa945Adb2938AaD6B53D45ea9f460Db9F") as Address,
 );

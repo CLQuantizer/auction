@@ -17,6 +17,11 @@ export type Deposit = typeof deposits.$inferSelect;
 export type NewDeposit = Omit<Deposit, 'id' | 'createdAt' | 'updatedAt'>;
 
 export const createDeposit = async (deposit: NewDeposit) => {
-  const result = await db.insert(deposits).values(deposit).returning();
+  const result = await db
+    .insert(deposits)
+    .values(deposit)
+    .onConflictDoNothing({ target: deposits.hash })
+    .returning();
+  
   return result[0];
 };

@@ -1,4 +1,4 @@
-import { pgTable, text, doublePrecision, timestamp, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, doublePrecision, timestamp, integer, serial } from 'drizzle-orm/pg-core';
 import { db } from './db';
 import { eq, and } from 'drizzle-orm';
 import { Decimal } from 'decimal.js';
@@ -15,6 +15,7 @@ export const balance = pgTable('balance', {
 });
 
 export const balanceLog = pgTable('balance_log', {
+  id: serial('id').primaryKey(),
   userId: text('user_id').notNull(),
   asset: integer('asset').notNull(),
   delta: doublePrecision('delta').notNull(),

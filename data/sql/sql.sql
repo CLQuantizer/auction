@@ -12,6 +12,7 @@ CREATE TABLE balance (
 
 -- Balance log table to record changes in balances
 CREATE TABLE balance_log (
+    id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
     asset INTEGER NOT NULL,
     delta DOUBLE PRECISION NOT NULL,
