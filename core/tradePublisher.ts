@@ -27,6 +27,8 @@ class TradePublisher {
           price: trade.price.toNumber(),
           quantity: trade.quantity.toNumber(),
           total: trade.price.times(trade.quantity).toNumber(),
+          buyOrderId: trade.buyOrderId,
+          sellOrderId: trade.sellOrderId,
           // fee is optional, so we omit it
         };
 
