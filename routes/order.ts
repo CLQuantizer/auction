@@ -91,6 +91,7 @@ orderRoutes.get("/orders", (c) => {
 orderRoutes.post("/v1/orders/place", marginLockMiddleware, async (c) => {
   const payload = c.get("orderPayload");
 
+  console.log(`Placing order: ${payload.userId} ${payload.side} ${payload.price} ${payload.quantity}`);
   const order = orderBook.placeOrder(payload);
 
   const orderWithStringDecimals = {

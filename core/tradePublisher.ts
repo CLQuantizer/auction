@@ -15,7 +15,10 @@ class TradePublisher {
       throw new Error("AUCTION_SERVICE_URL environment variable is not set");
     }
 
-    console.log(`Publishing ${trades.length} trades to ${serviceUrl}...`);
+    const baseUrl = serviceUrl.replace(/\/$/, ""); // Remove trailing slash if present
+    const endpoint = `${baseUrl}/trades`;
+
+    console.log(`Publishing ${trades.length} trades to ${endpoint}...`);
 
     // Send each trade individually
     const results = await Promise.allSettled(
@@ -27,7 +30,7 @@ class TradePublisher {
           // fee is optional, so we omit it
         };
 
-        const response = await fetch(serviceUrl, {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
