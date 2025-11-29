@@ -13,8 +13,8 @@ import {
 } from "../../data/scanner";
 import { Assets } from "../../data/ledgerTypes";
 
-// Maximum block range per RPC request (NodeReal limit: 50,000 blocks)
-const MAX_BLOCK_RANGE = 5000;
+// Maximum block range per RPC request (NodeReal limit: 50,000 blocks, GetBlock limit: 1,500 blocks)
+const MAX_BLOCK_RANGE = 1500;
 
 let isScanning = false;
 
@@ -86,6 +86,7 @@ export const scanDeposits = async () => {
 
     // Skip if we're already at the latest block
     if (currentFromBlock > latestBlock) {
+      console.log("currentFromBlock: ", currentFromBlock, "latestBlock: ", latestBlock);
       console.log("No new blocks to process.");
       return;
     }
@@ -189,7 +190,7 @@ export const scanDeposits = async () => {
 };
 
 // Run every 5 minutes
-export const scanDepositJob = new CronJob("0 */5 * * * *", scanDeposits);
+export const scanDepositJob = new CronJob("* */15 * * * *", scanDeposits);
 
 export const startDepositScanner = () => {
   console.log("Starting deposit scanner cron job...");
