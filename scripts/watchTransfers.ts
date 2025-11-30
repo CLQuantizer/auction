@@ -14,7 +14,7 @@ const TOKEN_DECIMALS = 18;
 
 // Cron schedule (default: every 15 seconds)
 // Format: "*/15 * * * * *" = every 15 seconds (6-field format with seconds)
-const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/30 * * * * *";
+const CRON_SCHEDULE = process.env.CRON_SCHEDULE || "*/15 * * * * *";
 
 // Maximum block range per RPC request (NodeReal limit: 50,000 blocks)
 const MAX_BLOCK_RANGE = 50000;
