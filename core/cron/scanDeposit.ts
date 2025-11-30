@@ -14,7 +14,7 @@ import {
 import { Assets } from "../../data/ledgerTypes";
 
 // Maximum block range per RPC request (NodeReal limit: 50,000 blocks, GetBlock limit: 1,500 blocks)
-const MAX_BLOCK_RANGE = 1500;
+const MAX_BLOCK_RANGE = 50000;
 
 let isScanning = false;
 
@@ -190,7 +190,7 @@ export const scanDeposits = async () => {
 };
 
 // Run every 5 minutes
-export const scanDepositJob = new CronJob("* */15 * * *", scanDeposits);
+export const scanDepositJob = new CronJob("* */30 * * * *", scanDeposits);
 
 export const startDepositScanner = () => {
   console.log("Starting deposit scanner cron job...");
