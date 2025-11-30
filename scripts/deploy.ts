@@ -69,10 +69,10 @@ async function compileAndDeploy(contractName: string, wallet: ethers.Wallet) {
 
 async function main() {
     // Bun automatically loads .env files
-    const { RPC_URL, MAINNET_RPC_URL, TESTNET_RPC_URL, PRIVATE_KEY } = process.env;
+    const { MAINNET_RPC_URL, PRIVATE_KEY } = process.env;
 
     // Fallback logic for RPC URL
-    const rpcUrl = RPC_URL || MAINNET_RPC_URL || TESTNET_RPC_URL;
+    const rpcUrl = MAINNET_RPC_URL;
 
     if (!rpcUrl) {
         throw new Error("RPC URL not set. Please set RPC_URL, MAINNET_RPC_URL, or TESTNET_RPC_URL in your environment variables.");
