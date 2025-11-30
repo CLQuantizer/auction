@@ -75,7 +75,7 @@ async function main() {
     const rpcUrl = MAINNET_RPC_URL;
 
     if (!rpcUrl) {
-        throw new Error("RPC URL not set. Please set RPC_URL, MAINNET_RPC_URL, or TESTNET_RPC_URL in your environment variables.");
+        throw new Error("RPC URL not set. Please set MAINNET_RPC_URL in your environment variables.");
     }
     if (!PRIVATE_KEY) {
         throw new Error("PRIVATE_KEY is not set. Please add it to your environment variables.");
