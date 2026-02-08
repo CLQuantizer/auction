@@ -11,6 +11,16 @@ auctionEngine.start();
 startDepositScanner();
 
 const app = new Hono();
+const AUCTION_AUTH_HEADER = "x-auction-auth";
+const AUCTION_AUTH_VALUE = "whosyourdaddy";
+
+app.use("*", async (c, next) => {
+  const authHeader = c.req.header(AUCTION_AUTH_HEADER);
+  if (authHeader !== AUCTION_AUTH_VALUE) {
+    return c.text("Unauthorized", 401);
+  }
+  return next();
+});
 
 app.get("/", (c) => c.text("Welcome to the Auction Server!"));
 app.route("/api", orderRoutes);
