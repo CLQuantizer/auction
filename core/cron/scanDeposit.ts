@@ -190,7 +190,7 @@ export const scanDeposits = async () => {
 };
 
 // Run every 5 minutes
-export const scanDepositJob = new CronJob("* */30 * * * *", scanDeposits);
+export const scanDepositJob = new CronJob("* */20 * * * *", scanDeposits);
 
 export const startDepositScanner = () => {
   console.log("Starting deposit scanner cron job...");
