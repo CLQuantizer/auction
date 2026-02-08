@@ -4,7 +4,6 @@ import { orderBook } from "../core/orderbook";
 import { toDecimal } from "../core/primitives/constants";
 import { OrderSide } from "../core/messages/order";
 import { marginGuard } from "../core/marginGuard";
-import { orderPublisher } from "../core/orderPublisher";
 import { Decimal } from "decimal.js";
 import { Assets } from "../data/ledgerTypes";
 
@@ -95,14 +94,6 @@ orderRoutes.post("/v1/orders/place", marginLockMiddleware, async (c) => {
   console.log(`Placing order: ${payload.userId} ${payload.side} ${payload.price} ${payload.quantity}`);
   const order = orderBook.placeOrder(payload);
   
-  try {
-    await orderPublisher.publish(order);
-  } catch (error) {
-    console.error("Failed to publish order to queue:", error);
-    // Note: We don't rollback the order placement if publishing fails,
-    // but in a production system we might want better reliability here.
-  }
-
   const orderWithStringDecimals = {
     ...order,
     price: order.price.toString(),

@@ -3,7 +3,6 @@ import { AUCTION_INTERVAL_SECONDS } from "./primitives/constants";
 import { type Order, OrderSide } from "./messages/order";
 import type { Trade } from "./messages/trade";
 import { orderBook } from "./orderbook";
-import { tradePublisher } from "./tradePublisher";
 import { auctionPublisher } from "./auctionPublisher";
 import { marginGuard } from "./marginGuard";
 import { ledger } from "../data/ledger";
@@ -148,13 +147,6 @@ class AuctionEngine {
       } catch (error) {
         console.error("Error settling balances:", error);
         // Still publish auction even if balance settlement fails
-      }
-      
-      try {
-        await tradePublisher.publish(newTrades);
-      } catch (error) {
-        console.error("Error publishing trades:", error);
-        // Don't fail the auction if publishing fails
       }
     }
 
