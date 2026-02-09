@@ -131,3 +131,23 @@ orderRoutes.post("/v1/orders/cancel", async (c) => {
     return c.text("Invalid JSON", 400);
   }
 });
+
+orderRoutes.post("/v1/orders/cancel-all", async (c) => {
+  const orders = orderBook.getOrders();
+  if (orders.length === 0) {
+    return c.json({ success: true, canceled: 0 });
+  }
+
+  await Promise.all(
+    orders.map(async (order) => {
+      const asset = order.side === OrderSide.BUY ? Assets.QUOTE : Assets.BASE;
+      const releaseAmount = order.side === OrderSide.BUY
+        ? order.price.times(order.quantity) // BUY: release QUOTE value
+        : order.quantity;                    // SELL: release BASE quantity
+      await marginGuard.releaseLock(order.userId, releaseAmount, asset);
+    })
+  );
+
+  orderBook.clear();
+  return c.json({ success: true, canceled: orders.length });
+});

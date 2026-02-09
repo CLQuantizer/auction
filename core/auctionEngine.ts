@@ -191,75 +191,63 @@ class AuctionEngine {
     trades: Trade[],
     clearingPrice: Decimal
   ): Promise<void> {
-    // Group trades by order to calculate total filled per order
-    const orderFills = new Map<string, Decimal>();
-    
     for (const trade of trades) {
-      const buyFilled = orderFills.get(trade.buyOrderId) || new Decimal(0);
-      const sellFilled = orderFills.get(trade.sellOrderId) || new Decimal(0);
-      orderFills.set(trade.buyOrderId, buyFilled.plus(trade.quantity));
-      orderFills.set(trade.sellOrderId, sellFilled.plus(trade.quantity));
-    }
-
-    // Process each order that was filled
-    for (const [orderId, filledQty] of orderFills.entries()) {
-      const order = orderBook.getOrderById(orderId);
-      if (!order) {
-        console.error(`Order ${orderId} not found for settlement`);
+      const buyOrder = orderBook.getOrderById(trade.buyOrderId);
+      const sellOrder = orderBook.getOrderById(trade.sellOrderId);
+      if (!buyOrder || !sellOrder) {
+        console.error(
+          `Order not found for settlement: buy=${trade.buyOrderId} sell=${trade.sellOrderId}`
+        );
         continue;
       }
 
-      // Use clearing price (from trade) to calculate quote amount
-      const quoteAmount = filledQty.times(clearingPrice);
-      
-      // Calculate locked amount based on order side
-      // BUY orders lock QUOTE value, SELL orders lock BASE quantity
-      const lockedAmount = order.side === OrderSide.BUY
-        ? filledQty.times(order.price)  // BUY: locked QUOTE value
-        : filledQty;                       // SELL: locked BASE quantity
+      const quoteAmount = trade.quantity.times(clearingPrice);
+      const buyLockedAmount = trade.quantity.times(buyOrder.price);
+      const sellLockedAmount = trade.quantity;
 
-      if (order.side === OrderSide.BUY) {
-        // Buyer: Release locked QUOTE, deduct QUOTE, credit BASE
-        // Release the locked QUOTE for the filled portion (based on original order price)
-        await marginGuard.releaseLock(order.userId, lockedAmount, Assets.QUOTE);
-        // Deduct QUOTE at clearing price (what was actually paid)
-        await ledger.log(
-          order.userId,
-          quoteAmount.negated(),
-          LedgerTransactionType.TRADE,
-          Assets.QUOTE
-        );
-        // Credit BASE (received in exchange)
-        await ledger.log(
-          order.userId,
-          filledQty,
-          LedgerTransactionType.TRADE,
-          Assets.BASE
-        );
+      // Always release locks for the filled portion.
+      await marginGuard.releaseLock(buyOrder.userId, buyLockedAmount, Assets.QUOTE);
+      await marginGuard.releaseLock(sellOrder.userId, sellLockedAmount, Assets.BASE);
+
+      // Self-trade: keep balances unchanged, only unlock.
+      if (buyOrder.userId === sellOrder.userId) {
         console.log(
-          `Settled BUY order ${orderId}: Released ${lockedAmount} QUOTE, deducted ${quoteAmount} QUOTE, credited ${filledQty} BASE`
+          `Self-trade settled: released ${buyLockedAmount} QUOTE and ${sellLockedAmount} BASE for user ${buyOrder.userId}`
         );
-      } else {
-        // Seller: Release locked BASE, deduct BASE, credit QUOTE
-        await marginGuard.releaseLock(order.userId, lockedAmount, Assets.BASE);
-        // Deduct BASE (sold)
-        await ledger.log(
-          order.userId,
-          filledQty.negated(),
-          LedgerTransactionType.TRADE,
-          Assets.BASE
-        );
-        // Credit QUOTE (received in exchange at clearing price)
-        await ledger.log(
-          order.userId,
-          quoteAmount,
-          LedgerTransactionType.TRADE,
-          Assets.QUOTE
-        );
-        console.log(
-          `Settled SELL order ${orderId}: Released ${lockedAmount} BASE, deducted ${filledQty} BASE, credited ${quoteAmount} QUOTE`
-        );
+        continue;
       }
+
+      // Buyer: deduct QUOTE, credit BASE
+      await ledger.log(
+        buyOrder.userId,
+        quoteAmount.negated(),
+        LedgerTransactionType.TRADE,
+        Assets.QUOTE
+      );
+      await ledger.log(
+        buyOrder.userId,
+        trade.quantity,
+        LedgerTransactionType.TRADE,
+        Assets.BASE
+      );
+
+      // Seller: deduct BASE, credit QUOTE
+      await ledger.log(
+        sellOrder.userId,
+        trade.quantity.negated(),
+        LedgerTransactionType.TRADE,
+        Assets.BASE
+      );
+      await ledger.log(
+        sellOrder.userId,
+        quoteAmount,
+        LedgerTransactionType.TRADE,
+        Assets.QUOTE
+      );
+
+      console.log(
+        `Settled trade ${trade.id}: ${trade.quantity} @ ${trade.price}`
+      );
     }
   }
 }
