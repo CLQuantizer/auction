@@ -151,3 +151,35 @@ orderRoutes.post("/v1/orders/cancel-all", async (c) => {
   orderBook.clear();
   return c.json({ success: true, canceled: orders.length });
 });
+
+orderRoutes.post("/v1/orders/cancel-all-user", async (c) => {
+  try {
+    const body = (await c.req.json()) as { userId: string };
+    if (!body.userId) {
+      return c.text("Missing userId", 400);
+    }
+
+    const userOrders = orderBook.getOrders().filter((o) => o.userId === body.userId);
+    if (userOrders.length === 0) {
+      return c.json({ success: true, canceled: 0 });
+    }
+
+    await Promise.all(
+      userOrders.map(async (order) => {
+        const canceledOrder = orderBook.cancelOrder(order.id, body.userId);
+        if (!canceledOrder) {
+          return;
+        }
+        const asset = canceledOrder.side === OrderSide.BUY ? Assets.QUOTE : Assets.BASE;
+        const releaseAmount = canceledOrder.side === OrderSide.BUY
+          ? canceledOrder.price.times(canceledOrder.quantity)
+          : canceledOrder.quantity;
+        await marginGuard.releaseLock(body.userId, releaseAmount, asset);
+      })
+    );
+
+    return c.json({ success: true, canceled: userOrders.length });
+  } catch (e) {
+    return c.text("Invalid JSON", 400);
+  }
+});
